@@ -1,0 +1,152 @@
+import { 
+  LayoutDashboard, 
+  FileInput, 
+  FileOutput, 
+  FileCheck2, 
+  ClipboardList,
+  Building2,
+  Menu,
+  X
+} from 'lucide-react';
+import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
+
+interface AppLayoutProps {
+  children: React.ReactNode;
+  activeTab: string;
+  onTabChange: (tab: string) => void;
+}
+
+const navItems = [
+  { id: 'dashboard', label: 'Tableau de Bord', icon: LayoutDashboard },
+  { id: 'import', label: 'Import Excel', icon: FileInput },
+  { id: 'generate', label: 'Génération', icon: FileOutput },
+  { id: 'reconciliation', label: 'Réconciliation', icon: FileCheck2 },
+  { id: 'audit', label: 'Journal d\'Audit', icon: ClipboardList },
+];
+
+export function AppLayout({ children, activeTab, onTabChange }: AppLayoutProps) {
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  return (
+    <div className="min-h-screen flex bg-background">
+      {/* Desktop Sidebar */}
+      <aside 
+        className={cn(
+          "hidden lg:flex flex-col bg-sidebar text-sidebar-foreground transition-all duration-300",
+          sidebarOpen ? "w-64" : "w-16"
+        )}
+      >
+        {/* Logo */}
+        <div className="h-16 flex items-center gap-3 px-4 border-b border-sidebar-border">
+          <div className="w-10 h-10 rounded-lg bg-sidebar-primary flex items-center justify-center flex-shrink-0">
+            <Building2 className="h-6 w-6 text-sidebar-primary-foreground" />
+          </div>
+          {sidebarOpen && (
+            <div className="animate-fade-in">
+              <h1 className="font-bold text-sm">MUCO-AMPLITUDE</h1>
+              <p className="text-xs text-sidebar-foreground/70">Middleware Paie</p>
+            </div>
+          )}
+        </div>
+
+        {/* Navigation */}
+        <nav className="flex-1 p-3 space-y-1">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = activeTab === item.id;
+            
+            return (
+              <button
+                key={item.id}
+                onClick={() => onTabChange(item.id)}
+                className={cn(
+                  "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200",
+                  isActive 
+                    ? "bg-sidebar-primary text-sidebar-primary-foreground" 
+                    : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                )}
+              >
+                <Icon className="h-5 w-5 flex-shrink-0" />
+                {sidebarOpen && (
+                  <span className="text-sm font-medium animate-fade-in">{item.label}</span>
+                )}
+              </button>
+            );
+          })}
+        </nav>
+
+        {/* Toggle Button */}
+        <div className="p-3 border-t border-sidebar-border">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className="w-full text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent"
+          >
+            <Menu className="h-5 w-5" />
+            {sidebarOpen && <span className="ml-2">Réduire</span>}
+          </Button>
+        </div>
+      </aside>
+
+      {/* Mobile Header */}
+      <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-sidebar text-sidebar-foreground z-50 flex items-center justify-between px-4 border-b border-sidebar-border">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-sidebar-primary flex items-center justify-center">
+            <Building2 className="h-6 w-6 text-sidebar-primary-foreground" />
+          </div>
+          <div>
+            <h1 className="font-bold text-sm">MUCO-AMPLITUDE</h1>
+          </div>
+        </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          className="text-sidebar-foreground"
+        >
+          {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+        </Button>
+      </div>
+
+      {/* Mobile Menu */}
+      {mobileMenuOpen && (
+        <div className="lg:hidden fixed inset-0 top-16 bg-sidebar z-40 animate-fade-in">
+          <nav className="p-4 space-y-2">
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = activeTab === item.id;
+              
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => {
+                    onTabChange(item.id);
+                    setMobileMenuOpen(false);
+                  }}
+                  className={cn(
+                    "w-full flex items-center gap-3 px-4 py-3 rounded-lg",
+                    isActive 
+                      ? "bg-sidebar-primary text-sidebar-primary-foreground" 
+                      : "text-sidebar-foreground/70"
+                  )}
+                >
+                  <Icon className="h-5 w-5" />
+                  <span className="font-medium">{item.label}</span>
+                </button>
+              );
+            })}
+          </nav>
+        </div>
+      )}
+
+      {/* Main Content */}
+      <main className="flex-1 lg:p-6 p-4 pt-20 lg:pt-6 overflow-auto">
+        {children}
+      </main>
+    </div>
+  );
+}
