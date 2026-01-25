@@ -14,6 +14,81 @@ export type Database = {
   }
   public: {
     Tables: {
+      account_status_cache: {
+        Row: {
+          account_status: Database["public"]["Enums"]["account_status"]
+          account_type: Database["public"]["Enums"]["account_type"]
+          cle_rib: string
+          code_banque: string
+          code_guichet: string
+          created_at: string
+          date_cloture: string | null
+          date_gel: string | null
+          date_ouverture: string | null
+          id: string
+          id_societaire: string
+          last_sync_at: string
+          matricule_lie: string | null
+          motif_gel: string | null
+          nom_titulaire: string
+          numero_compte: string
+          oracle_source_id: string | null
+          prenom_titulaire: string | null
+          rib: string
+          solde_disponible: number | null
+          sync_hash: string | null
+          updated_at: string
+        }
+        Insert: {
+          account_status?: Database["public"]["Enums"]["account_status"]
+          account_type?: Database["public"]["Enums"]["account_type"]
+          cle_rib: string
+          code_banque: string
+          code_guichet: string
+          created_at?: string
+          date_cloture?: string | null
+          date_gel?: string | null
+          date_ouverture?: string | null
+          id?: string
+          id_societaire: string
+          last_sync_at?: string
+          matricule_lie?: string | null
+          motif_gel?: string | null
+          nom_titulaire: string
+          numero_compte: string
+          oracle_source_id?: string | null
+          prenom_titulaire?: string | null
+          rib: string
+          solde_disponible?: number | null
+          sync_hash?: string | null
+          updated_at?: string
+        }
+        Update: {
+          account_status?: Database["public"]["Enums"]["account_status"]
+          account_type?: Database["public"]["Enums"]["account_type"]
+          cle_rib?: string
+          code_banque?: string
+          code_guichet?: string
+          created_at?: string
+          date_cloture?: string | null
+          date_gel?: string | null
+          date_ouverture?: string | null
+          id?: string
+          id_societaire?: string
+          last_sync_at?: string
+          matricule_lie?: string | null
+          motif_gel?: string | null
+          nom_titulaire?: string
+          numero_compte?: string
+          oracle_source_id?: string | null
+          prenom_titulaire?: string | null
+          rib?: string
+          solde_disponible?: number | null
+          sync_hash?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       audit_logs: {
         Row: {
           action: string
@@ -53,6 +128,144 @@ export type Database = {
           session_id?: string | null
           severity?: string | null
           user_agent?: string | null
+        }
+        Relationships: []
+      }
+      dry_run_results: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          comptes_bloques: number | null
+          comptes_clos: number | null
+          comptes_geles: number | null
+          created_at: string
+          details: Json | null
+          erreurs_identite: number | null
+          frais_estimes: number | null
+          id: string
+          import_id: string | null
+          lignes_a_splitter: number
+          lignes_rejetees: number
+          lignes_valides: number
+          montant_rejete: number | null
+          montant_total: number | null
+          montant_valide: number | null
+          rejections_detail: Json | null
+          rib_invalides: number | null
+          routing_detail: Json | null
+          run_timestamp: string
+          splits_detail: Json | null
+          total_lignes: number
+          user_approved: boolean | null
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          comptes_bloques?: number | null
+          comptes_clos?: number | null
+          comptes_geles?: number | null
+          created_at?: string
+          details?: Json | null
+          erreurs_identite?: number | null
+          frais_estimes?: number | null
+          id?: string
+          import_id?: string | null
+          lignes_a_splitter?: number
+          lignes_rejetees?: number
+          lignes_valides?: number
+          montant_rejete?: number | null
+          montant_total?: number | null
+          montant_valide?: number | null
+          rejections_detail?: Json | null
+          rib_invalides?: number | null
+          routing_detail?: Json | null
+          run_timestamp?: string
+          splits_detail?: Json | null
+          total_lignes?: number
+          user_approved?: boolean | null
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          comptes_bloques?: number | null
+          comptes_clos?: number | null
+          comptes_geles?: number | null
+          created_at?: string
+          details?: Json | null
+          erreurs_identite?: number | null
+          frais_estimes?: number | null
+          id?: string
+          import_id?: string | null
+          lignes_a_splitter?: number
+          lignes_rejetees?: number
+          lignes_valides?: number
+          montant_rejete?: number | null
+          montant_total?: number | null
+          montant_valide?: number | null
+          rejections_detail?: Json | null
+          rib_invalides?: number | null
+          routing_detail?: Json | null
+          run_timestamp?: string
+          splits_detail?: Json | null
+          total_lignes?: number
+          user_approved?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dry_run_results_import_id_fkey"
+            columns: ["import_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_imports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fee_schedules: {
+        Row: {
+          compte_encaissement: string | null
+          created_at: string
+          destination: Database["public"]["Enums"]["routing_destination"] | null
+          fee_code: string
+          fee_name: string
+          id: string
+          is_active: boolean | null
+          montant_fixe: number | null
+          montant_maximum: number | null
+          montant_minimum: number | null
+          pourcentage: number | null
+          type_operation: string | null
+        }
+        Insert: {
+          compte_encaissement?: string | null
+          created_at?: string
+          destination?:
+            | Database["public"]["Enums"]["routing_destination"]
+            | null
+          fee_code: string
+          fee_name: string
+          id?: string
+          is_active?: boolean | null
+          montant_fixe?: number | null
+          montant_maximum?: number | null
+          montant_minimum?: number | null
+          pourcentage?: number | null
+          type_operation?: string | null
+        }
+        Update: {
+          compte_encaissement?: string | null
+          created_at?: string
+          destination?:
+            | Database["public"]["Enums"]["routing_destination"]
+            | null
+          fee_code?: string
+          fee_name?: string
+          id?: string
+          is_active?: boolean | null
+          montant_fixe?: number | null
+          montant_maximum?: number | null
+          montant_minimum?: number | null
+          pourcentage?: number | null
+          type_operation?: string | null
         }
         Relationships: []
       }
@@ -133,6 +346,57 @@ export type Database = {
           last_seen_at?: string
           matricule?: string
           occurrence_count?: number | null
+        }
+        Relationships: []
+      }
+      member_accounts: {
+        Row: {
+          accounts_verified: boolean | null
+          created_at: string
+          id: string
+          id_societaire: string
+          last_verification_at: string | null
+          matricule: string
+          rib_alternatif: string | null
+          rib_courant: string | null
+          rib_epargne: string | null
+          split_percentage_courant: number | null
+          split_percentage_epargne: number | null
+          splitting_enabled: boolean | null
+          updated_at: string
+          verification_notes: string | null
+        }
+        Insert: {
+          accounts_verified?: boolean | null
+          created_at?: string
+          id?: string
+          id_societaire: string
+          last_verification_at?: string | null
+          matricule: string
+          rib_alternatif?: string | null
+          rib_courant?: string | null
+          rib_epargne?: string | null
+          split_percentage_courant?: number | null
+          split_percentage_epargne?: number | null
+          splitting_enabled?: boolean | null
+          updated_at?: string
+          verification_notes?: string | null
+        }
+        Update: {
+          accounts_verified?: boolean | null
+          created_at?: string
+          id?: string
+          id_societaire?: string
+          last_verification_at?: string | null
+          matricule?: string
+          rib_alternatif?: string | null
+          rib_courant?: string | null
+          rib_epargne?: string | null
+          split_percentage_courant?: number | null
+          split_percentage_epargne?: number | null
+          splitting_enabled?: boolean | null
+          updated_at?: string
+          verification_notes?: string | null
         }
         Relationships: []
       }
@@ -258,6 +522,90 @@ export type Database = {
         }
         Relationships: []
       }
+      preflight_validations: {
+        Row: {
+          account_status_found:
+            | Database["public"]["Enums"]["account_status"]
+            | null
+          corrected_rib: string | null
+          correction_applied: boolean | null
+          correction_proposed: Json | null
+          created_at: string
+          error_code: string | null
+          error_details: Json | null
+          error_message: string | null
+          id: string
+          id_societaire_found: string | null
+          identity_check_passed: boolean | null
+          identity_mismatch_details: string | null
+          import_id: string | null
+          matricule: string
+          montant: number
+          payroll_entry_id: string | null
+          preflight_status: Database["public"]["Enums"]["preflight_status"]
+          rib_source: string
+        }
+        Insert: {
+          account_status_found?:
+            | Database["public"]["Enums"]["account_status"]
+            | null
+          corrected_rib?: string | null
+          correction_applied?: boolean | null
+          correction_proposed?: Json | null
+          created_at?: string
+          error_code?: string | null
+          error_details?: Json | null
+          error_message?: string | null
+          id?: string
+          id_societaire_found?: string | null
+          identity_check_passed?: boolean | null
+          identity_mismatch_details?: string | null
+          import_id?: string | null
+          matricule: string
+          montant: number
+          payroll_entry_id?: string | null
+          preflight_status: Database["public"]["Enums"]["preflight_status"]
+          rib_source: string
+        }
+        Update: {
+          account_status_found?:
+            | Database["public"]["Enums"]["account_status"]
+            | null
+          corrected_rib?: string | null
+          correction_applied?: boolean | null
+          correction_proposed?: Json | null
+          created_at?: string
+          error_code?: string | null
+          error_details?: Json | null
+          error_message?: string | null
+          id?: string
+          id_societaire_found?: string | null
+          identity_check_passed?: boolean | null
+          identity_mismatch_details?: string | null
+          import_id?: string | null
+          matricule?: string
+          montant?: number
+          payroll_entry_id?: string | null
+          preflight_status?: Database["public"]["Enums"]["preflight_status"]
+          rib_source?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "preflight_validations_import_id_fkey"
+            columns: ["import_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_imports"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "preflight_validations_payroll_entry_id_fkey"
+            columns: ["payroll_entry_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_entries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       processing_stats: {
         Row: {
           batch_number: number | null
@@ -298,6 +646,57 @@ export type Database = {
             columns: ["import_id"]
             isOneToOne: false
             referencedRelation: "payroll_imports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      product_codes: {
+        Row: {
+          code: string
+          code_banque_associe: string | null
+          code_guichet_associe: string | null
+          created_at: string
+          destination: Database["public"]["Enums"]["routing_destination"] | null
+          fee_schedule_id: string | null
+          frais_applicables: boolean | null
+          id: string
+          is_active: boolean | null
+          libelle: string
+        }
+        Insert: {
+          code: string
+          code_banque_associe?: string | null
+          code_guichet_associe?: string | null
+          created_at?: string
+          destination?:
+            | Database["public"]["Enums"]["routing_destination"]
+            | null
+          fee_schedule_id?: string | null
+          frais_applicables?: boolean | null
+          id?: string
+          is_active?: boolean | null
+          libelle: string
+        }
+        Update: {
+          code?: string
+          code_banque_associe?: string | null
+          code_guichet_associe?: string | null
+          created_at?: string
+          destination?:
+            | Database["public"]["Enums"]["routing_destination"]
+            | null
+          fee_schedule_id?: string | null
+          frais_applicables?: boolean | null
+          id?: string
+          is_active?: boolean | null
+          libelle?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_codes_fee_schedule_id_fkey"
+            columns: ["fee_schedule_id"]
+            isOneToOne: false
+            referencedRelation: "fee_schedules"
             referencedColumns: ["id"]
           },
         ]
@@ -421,6 +820,262 @@ export type Database = {
           },
         ]
       }
+      rib_corrections: {
+        Row: {
+          auto_corrected: boolean | null
+          correction_reason: string | null
+          correction_source: string
+          created_at: string
+          id: string
+          import_id: string | null
+          matricule: string
+          payroll_entry_id: string | null
+          rib_corrige: string
+          rib_original: string
+          user_validated: boolean | null
+          validated_at: string | null
+          validated_by: string | null
+        }
+        Insert: {
+          auto_corrected?: boolean | null
+          correction_reason?: string | null
+          correction_source: string
+          created_at?: string
+          id?: string
+          import_id?: string | null
+          matricule: string
+          payroll_entry_id?: string | null
+          rib_corrige: string
+          rib_original: string
+          user_validated?: boolean | null
+          validated_at?: string | null
+          validated_by?: string | null
+        }
+        Update: {
+          auto_corrected?: boolean | null
+          correction_reason?: string | null
+          correction_source?: string
+          created_at?: string
+          id?: string
+          import_id?: string | null
+          matricule?: string
+          payroll_entry_id?: string | null
+          rib_corrige?: string
+          rib_original?: string
+          user_validated?: boolean | null
+          validated_at?: string | null
+          validated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rib_corrections_import_id_fkey"
+            columns: ["import_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_imports"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rib_corrections_payroll_entry_id_fkey"
+            columns: ["payroll_entry_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_entries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      routing_rules: {
+        Row: {
+          code_agence_source: string | null
+          code_banque_cible: string
+          code_compte_produit: string | null
+          code_guichet_cible: string
+          code_produit: string | null
+          compte_commission: string | null
+          created_at: string
+          destination: Database["public"]["Enums"]["routing_destination"]
+          employeur_code: string | null
+          frais_fixes: number | null
+          frais_pourcentage: number | null
+          id: string
+          is_active: boolean | null
+          priority: number | null
+          rule_name: string
+          updated_at: string
+        }
+        Insert: {
+          code_agence_source?: string | null
+          code_banque_cible: string
+          code_compte_produit?: string | null
+          code_guichet_cible: string
+          code_produit?: string | null
+          compte_commission?: string | null
+          created_at?: string
+          destination: Database["public"]["Enums"]["routing_destination"]
+          employeur_code?: string | null
+          frais_fixes?: number | null
+          frais_pourcentage?: number | null
+          id?: string
+          is_active?: boolean | null
+          priority?: number | null
+          rule_name: string
+          updated_at?: string
+        }
+        Update: {
+          code_agence_source?: string | null
+          code_banque_cible?: string
+          code_compte_produit?: string | null
+          code_guichet_cible?: string
+          code_produit?: string | null
+          compte_commission?: string | null
+          created_at?: string
+          destination?: Database["public"]["Enums"]["routing_destination"]
+          employeur_code?: string | null
+          frais_fixes?: number | null
+          frais_pourcentage?: number | null
+          id?: string
+          is_active?: boolean | null
+          priority?: number | null
+          rule_name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      split_transactions: {
+        Row: {
+          created_at: string
+          id: string
+          id_societaire_courant: string
+          id_societaire_epargne: string
+          identity_verified: boolean
+          import_id: string | null
+          matricule: string
+          montant_courant: number
+          montant_epargne: number
+          montant_total: number
+          payroll_entry_id: string | null
+          processed_at: string | null
+          rib_courant: string
+          rib_epargne: string
+          splitting_rule_id: string | null
+          status: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          id_societaire_courant: string
+          id_societaire_epargne: string
+          identity_verified?: boolean
+          import_id?: string | null
+          matricule: string
+          montant_courant: number
+          montant_epargne: number
+          montant_total: number
+          payroll_entry_id?: string | null
+          processed_at?: string | null
+          rib_courant: string
+          rib_epargne: string
+          splitting_rule_id?: string | null
+          status?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          id_societaire_courant?: string
+          id_societaire_epargne?: string
+          identity_verified?: boolean
+          import_id?: string | null
+          matricule?: string
+          montant_courant?: number
+          montant_epargne?: number
+          montant_total?: number
+          payroll_entry_id?: string | null
+          processed_at?: string | null
+          rib_courant?: string
+          rib_epargne?: string
+          splitting_rule_id?: string | null
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "split_transactions_import_id_fkey"
+            columns: ["import_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_imports"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "split_transactions_payroll_entry_id_fkey"
+            columns: ["payroll_entry_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "split_transactions_splitting_rule_id_fkey"
+            columns: ["splitting_rule_id"]
+            isOneToOne: false
+            referencedRelation: "splitting_rules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      splitting_rules: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          employeur_code: string | null
+          id: string
+          id_societaire: string | null
+          identity_verified: boolean | null
+          is_active: boolean | null
+          matricule: string | null
+          montant_minimum_split: number | null
+          percentage_courant: number
+          percentage_epargne: number
+          priority: number | null
+          rib_courant_cible: string | null
+          rib_epargne_cible: string | null
+          rule_name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          employeur_code?: string | null
+          id?: string
+          id_societaire?: string | null
+          identity_verified?: boolean | null
+          is_active?: boolean | null
+          matricule?: string | null
+          montant_minimum_split?: number | null
+          percentage_courant?: number
+          percentage_epargne?: number
+          priority?: number | null
+          rib_courant_cible?: string | null
+          rib_epargne_cible?: string | null
+          rule_name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          employeur_code?: string | null
+          id?: string
+          id_societaire?: string | null
+          identity_verified?: boolean | null
+          is_active?: boolean | null
+          matricule?: string | null
+          montant_minimum_split?: number | null
+          percentage_courant?: number
+          percentage_epargne?: number
+          priority?: number | null
+          rib_courant_cible?: string | null
+          rib_epargne_cible?: string | null
+          rule_name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       system_config: {
         Row: {
           description: string | null
@@ -460,7 +1115,29 @@ export type Database = {
       }
     }
     Enums: {
-      [_ in never]: never
+      account_status:
+        | "ACTIF"
+        | "GELE"
+        | "CLOS"
+        | "BLOQUE"
+        | "SAISIE_ATTRIBUTION"
+        | "DORMANT"
+        | "SUSPENDU"
+      account_type: "COURANT" | "EPARGNE" | "DAT" | "CREDIT" | "SPECIAL"
+      preflight_status:
+        | "VALID"
+        | "REJECTED_FROZEN"
+        | "REJECTED_CLOSED"
+        | "REJECTED_BLOCKED"
+        | "REJECTED_RIB_INVALID"
+        | "REJECTED_IDENTITY_MISMATCH"
+        | "PENDING_CORRECTION"
+        | "CORRECTED"
+      routing_destination:
+        | "CLM"
+        | "CAISSE_FEDERALE"
+        | "AGENCE_LOCALE"
+        | "EXTERNE"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -587,6 +1264,33 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      account_status: [
+        "ACTIF",
+        "GELE",
+        "CLOS",
+        "BLOQUE",
+        "SAISIE_ATTRIBUTION",
+        "DORMANT",
+        "SUSPENDU",
+      ],
+      account_type: ["COURANT", "EPARGNE", "DAT", "CREDIT", "SPECIAL"],
+      preflight_status: [
+        "VALID",
+        "REJECTED_FROZEN",
+        "REJECTED_CLOSED",
+        "REJECTED_BLOCKED",
+        "REJECTED_RIB_INVALID",
+        "REJECTED_IDENTITY_MISMATCH",
+        "PENDING_CORRECTION",
+        "CORRECTED",
+      ],
+      routing_destination: [
+        "CLM",
+        "CAISSE_FEDERALE",
+        "AGENCE_LOCALE",
+        "EXTERNE",
+      ],
+    },
   },
 } as const
