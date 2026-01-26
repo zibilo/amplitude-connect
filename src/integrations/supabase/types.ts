@@ -1105,13 +1105,110 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      apply_salary_split: {
+        Args: {
+          p_import_id: string
+          p_matricule: string
+          p_montant_total: number
+          p_payroll_entry_id: string
+        }
+        Returns: string
+      }
       batch_insert_entries: {
         Args: { p_entries: Json; p_import_id: string }
         Returns: number
       }
+      batch_preflight_validate: {
+        Args: { p_import_id: string }
+        Returns: {
+          total_rejected: number
+          total_valid: number
+          total_validated: number
+        }[]
+      }
       calculate_import_stats: {
         Args: { p_import_id: string }
         Returns: undefined
+      }
+      calculate_transfer_fees: {
+        Args: {
+          p_destination: Database["public"]["Enums"]["routing_destination"]
+          p_montant: number
+        }
+        Returns: {
+          frais_fixes: number
+          frais_total: number
+          frais_variables: number
+          montant_net: number
+        }[]
+      }
+      check_account_status: {
+        Args: { p_rib: string }
+        Returns: {
+          id_societaire: string
+          is_valid: boolean
+          nom_titulaire: string
+          rejection_reason: string
+          status: Database["public"]["Enums"]["account_status"]
+        }[]
+      }
+      cross_check_entry: {
+        Args: { p_matricule: string; p_montant: number; p_rib: string }
+        Returns: {
+          account_status: Database["public"]["Enums"]["account_status"]
+          error_messages: string[]
+          estimated_fees: number
+          has_splitting_rule: boolean
+          is_valid: boolean
+          needs_rib_correction: boolean
+          proposed_rib: string
+          routing_destination: Database["public"]["Enums"]["routing_destination"]
+          split_percentage_courant: number
+          split_percentage_epargne: number
+        }[]
+      }
+      execute_dry_run: { Args: { p_import_id: string }; Returns: string }
+      get_routing_rule: {
+        Args: { p_code_agence?: string; p_employeur_code: string }
+        Returns: {
+          code_banque_cible: string
+          code_guichet_cible: string
+          destination: Database["public"]["Enums"]["routing_destination"]
+          frais_fixes: number
+          frais_pourcentage: number
+        }[]
+      }
+      preflight_validate_entry: {
+        Args: {
+          p_import_id: string
+          p_matricule: string
+          p_montant: number
+          p_payroll_entry_id: string
+          p_rib: string
+        }
+        Returns: string
+      }
+      propose_rib_correction: {
+        Args: { p_matricule: string; p_rib_invalid: string }
+        Returns: {
+          account_holder: string
+          corrected_rib: string
+          correction_reason: string
+          has_correction: boolean
+        }[]
+      }
+      verify_split_identity: {
+        Args: {
+          p_matricule: string
+          p_rib_courant: string
+          p_rib_epargne: string
+        }
+        Returns: {
+          id_societaire_courant: string
+          id_societaire_epargne: string
+          identity_match: boolean
+          mismatch_details: string
+        }[]
       }
     }
     Enums: {
