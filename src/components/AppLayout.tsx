@@ -6,7 +6,13 @@ import {
   ClipboardList,
   Building2,
   Menu,
-  X
+  X,
+  Landmark,
+  GitBranch,
+  Calendar,
+  AlertTriangle,
+  Hash,
+  Settings
 } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -18,12 +24,25 @@ interface AppLayoutProps {
   onTabChange: (tab: string) => void;
 }
 
-const navItems = [
-  { id: 'dashboard', label: 'Tableau de Bord', icon: LayoutDashboard },
-  { id: 'import', label: 'Import Excel', icon: FileInput },
-  { id: 'generate', label: 'Génération', icon: FileOutput },
-  { id: 'reconciliation', label: 'Réconciliation', icon: FileCheck2 },
-  { id: 'audit', label: 'Journal d\'Audit', icon: ClipboardList },
+interface NavItem {
+  id: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  section?: string;
+}
+
+const navItems: NavItem[] = [
+  { id: 'dashboard', label: 'Tableau de Bord', icon: LayoutDashboard, section: 'principal' },
+  { id: 'import', label: 'Import Excel', icon: FileInput, section: 'principal' },
+  { id: 'generate', label: 'Génération', icon: FileOutput, section: 'principal' },
+  { id: 'reconciliation', label: 'Réconciliation', icon: FileCheck2, section: 'principal' },
+  { id: 'audit', label: 'Journal d\'Audit', icon: ClipboardList, section: 'principal' },
+  { id: 'companies', label: 'Entreprises', icon: Building2, section: 'config' },
+  { id: 'clm', label: 'Agences CLM', icon: Landmark, section: 'config' },
+  { id: 'splitting', label: 'Règles Splitting', icon: GitBranch, section: 'config' },
+  { id: 'flux', label: 'Compteur Flux', icon: Calendar, section: 'suivi' },
+  { id: 'alerts', label: 'Alertes', icon: AlertTriangle, section: 'suivi' },
+  { id: 'matricule', label: 'Outil Matricule', icon: Hash, section: 'outils' },
 ];
 
 export function AppLayout({ children, activeTab, onTabChange }: AppLayoutProps) {
@@ -53,29 +72,102 @@ export function AppLayout({ children, activeTab, onTabChange }: AppLayoutProps) 
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 p-3 space-y-1">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = activeTab === item.id;
-            
-            return (
-              <button
-                key={item.id}
-                onClick={() => onTabChange(item.id)}
-                className={cn(
-                  "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200",
-                  isActive 
-                    ? "bg-sidebar-primary text-sidebar-primary-foreground" 
-                    : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                )}
-              >
-                <Icon className="h-5 w-5 flex-shrink-0" />
-                {sidebarOpen && (
-                  <span className="text-sm font-medium animate-fade-in">{item.label}</span>
-                )}
-              </button>
-            );
-          })}
+        <nav className="flex-1 p-3 space-y-4 overflow-y-auto">
+          {/* Principal */}
+          <div className="space-y-1">
+            {sidebarOpen && <p className="px-3 text-xs font-semibold text-sidebar-foreground/50 uppercase">Principal</p>}
+            {navItems.filter(i => i.section === 'principal').map((item) => {
+              const Icon = item.icon;
+              const isActive = activeTab === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => onTabChange(item.id)}
+                  className={cn(
+                    "w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200",
+                    isActive 
+                      ? "bg-sidebar-primary text-sidebar-primary-foreground" 
+                      : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                  )}
+                >
+                  <Icon className="h-5 w-5 flex-shrink-0" />
+                  {sidebarOpen && <span className="text-sm font-medium">{item.label}</span>}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Configuration */}
+          <div className="space-y-1">
+            {sidebarOpen && <p className="px-3 text-xs font-semibold text-sidebar-foreground/50 uppercase">Configuration</p>}
+            {navItems.filter(i => i.section === 'config').map((item) => {
+              const Icon = item.icon;
+              const isActive = activeTab === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => onTabChange(item.id)}
+                  className={cn(
+                    "w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200",
+                    isActive 
+                      ? "bg-sidebar-primary text-sidebar-primary-foreground" 
+                      : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                  )}
+                >
+                  <Icon className="h-5 w-5 flex-shrink-0" />
+                  {sidebarOpen && <span className="text-sm font-medium">{item.label}</span>}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Suivi */}
+          <div className="space-y-1">
+            {sidebarOpen && <p className="px-3 text-xs font-semibold text-sidebar-foreground/50 uppercase">Suivi</p>}
+            {navItems.filter(i => i.section === 'suivi').map((item) => {
+              const Icon = item.icon;
+              const isActive = activeTab === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => onTabChange(item.id)}
+                  className={cn(
+                    "w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200",
+                    isActive 
+                      ? "bg-sidebar-primary text-sidebar-primary-foreground" 
+                      : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                  )}
+                >
+                  <Icon className="h-5 w-5 flex-shrink-0" />
+                  {sidebarOpen && <span className="text-sm font-medium">{item.label}</span>}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Outils */}
+          <div className="space-y-1">
+            {sidebarOpen && <p className="px-3 text-xs font-semibold text-sidebar-foreground/50 uppercase">Outils</p>}
+            {navItems.filter(i => i.section === 'outils').map((item) => {
+              const Icon = item.icon;
+              const isActive = activeTab === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => onTabChange(item.id)}
+                  className={cn(
+                    "w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200",
+                    isActive 
+                      ? "bg-sidebar-primary text-sidebar-primary-foreground" 
+                      : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                  )}
+                >
+                  <Icon className="h-5 w-5 flex-shrink-0" />
+                  {sidebarOpen && <span className="text-sm font-medium">{item.label}</span>}
+                </button>
+              );
+            })}
+          </div>
         </nav>
 
         {/* Toggle Button */}

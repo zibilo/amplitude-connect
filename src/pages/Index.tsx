@@ -6,6 +6,12 @@ import { PayrollDataTable } from '@/components/PayrollDataTable';
 import { FileGenerator } from '@/components/FileGenerator';
 import { ReconciliationModule } from '@/components/ReconciliationModule';
 import { AuditDashboard } from '@/components/AuditDashboard';
+import { CompanyProfilesManager } from '@/components/CompanyProfilesManager';
+import { CLMAgencyManager } from '@/components/CLMAgencyManager';
+import { SplittingRulesManager } from '@/components/SplittingRulesManager';
+import { MonthlyFluxTracker } from '@/components/MonthlyFluxTracker';
+import { IntegrityAlertsPanel } from '@/components/IntegrityAlertsPanel';
+import { MatriculeNormalizerTool } from '@/components/MatriculeNormalizerTool';
 import { ImportResult, GeneratedFile, ReconciliationReport } from '@/types/payroll';
 
 const Index = () => {
@@ -16,7 +22,6 @@ const Index = () => {
 
   const handleImportComplete = (result: ImportResult) => {
     setImportData(result);
-    // Auto-switch to data view after import
     setActiveTab('import');
   };
 
@@ -92,6 +97,27 @@ const Index = () => {
             <AuditDashboard />
           </div>
         );
+
+      // Configuration modules
+      case 'companies':
+        return <CompanyProfilesManager />;
+      
+      case 'clm':
+        return <CLMAgencyManager />;
+      
+      case 'splitting':
+        return <SplittingRulesManager />;
+
+      // Tracking modules
+      case 'flux':
+        return <MonthlyFluxTracker />;
+      
+      case 'alerts':
+        return <IntegrityAlertsPanel />;
+
+      // Tools
+      case 'matricule':
+        return <MatriculeNormalizerTool />;
       
       default:
         return null;

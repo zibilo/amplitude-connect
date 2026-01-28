@@ -131,6 +131,90 @@ export type Database = {
         }
         Relationships: []
       }
+      clm_agency_codes: {
+        Row: {
+          code_banque: string
+          code_guichet: string
+          compte_commission: string
+          compte_produit: string
+          created_at: string
+          frais_virement: number
+          id: string
+          is_active: boolean | null
+          nom_clm: string
+        }
+        Insert: {
+          code_banque: string
+          code_guichet: string
+          compte_commission: string
+          compte_produit: string
+          created_at?: string
+          frais_virement?: number
+          id?: string
+          is_active?: boolean | null
+          nom_clm: string
+        }
+        Update: {
+          code_banque?: string
+          code_guichet?: string
+          compte_commission?: string
+          compte_produit?: string
+          created_at?: string
+          frais_virement?: number
+          id?: string
+          is_active?: boolean | null
+          nom_clm?: string
+        }
+        Relationships: []
+      }
+      company_profiles: {
+        Row: {
+          adresse: string | null
+          code_client: string
+          compte_prelevement: string | null
+          contact_email: string | null
+          contact_telephone: string | null
+          created_at: string | null
+          fee_option: Database["public"]["Enums"]["fee_option"]
+          id: string
+          is_active: boolean | null
+          montant_frais: number | null
+          nom_entreprise: string
+          notes: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          adresse?: string | null
+          code_client: string
+          compte_prelevement?: string | null
+          contact_email?: string | null
+          contact_telephone?: string | null
+          created_at?: string | null
+          fee_option?: Database["public"]["Enums"]["fee_option"]
+          id?: string
+          is_active?: boolean | null
+          montant_frais?: number | null
+          nom_entreprise: string
+          notes?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          adresse?: string | null
+          code_client?: string
+          compte_prelevement?: string | null
+          contact_email?: string | null
+          contact_telephone?: string | null
+          created_at?: string | null
+          fee_option?: Database["public"]["Enums"]["fee_option"]
+          id?: string
+          is_active?: boolean | null
+          montant_frais?: number | null
+          nom_entreprise?: string
+          notes?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       dry_run_results: {
         Row: {
           approved_at: string | null
@@ -269,6 +353,191 @@ export type Database = {
         }
         Relationships: []
       }
+      file_staging: {
+        Row: {
+          created_at: string
+          entries_count: number
+          error_message: string | null
+          file_content: string
+          file_format: string
+          file_hash: string
+          file_name: string
+          file_type: string
+          id: string
+          import_id: string | null
+          staging_path: string | null
+          status: string | null
+          target_empty_verified: boolean | null
+          target_path: string | null
+          total_amount: number
+          total_fees: number
+          transferred_at: string | null
+          validation_passed: boolean | null
+        }
+        Insert: {
+          created_at?: string
+          entries_count?: number
+          error_message?: string | null
+          file_content: string
+          file_format: string
+          file_hash: string
+          file_name: string
+          file_type: string
+          id?: string
+          import_id?: string | null
+          staging_path?: string | null
+          status?: string | null
+          target_empty_verified?: boolean | null
+          target_path?: string | null
+          total_amount?: number
+          total_fees?: number
+          transferred_at?: string | null
+          validation_passed?: boolean | null
+        }
+        Update: {
+          created_at?: string
+          entries_count?: number
+          error_message?: string | null
+          file_content?: string
+          file_format?: string
+          file_hash?: string
+          file_name?: string
+          file_type?: string
+          id?: string
+          import_id?: string | null
+          staging_path?: string | null
+          status?: string | null
+          target_empty_verified?: boolean | null
+          target_path?: string | null
+          total_amount?: number
+          total_fees?: number
+          transferred_at?: string | null
+          validation_passed?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "file_staging_import_id_fkey"
+            columns: ["import_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_imports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      generated_entries: {
+        Row: {
+          account_id: string
+          amount: number
+          amount_cents: number
+          branch_code: string
+          clm_agency_id: string | null
+          created_at: string
+          entry_type: string
+          fee_amount: number | null
+          generated_file_id: string | null
+          id: string
+          id_societaire: string | null
+          import_id: string | null
+          is_clm_account: boolean | null
+          is_split_entry: boolean | null
+          matricule: string
+          nom_beneficiaire: string | null
+          original_amount: number | null
+          payroll_entry_id: string | null
+          reconciliation_account: string | null
+          sequence_number: number
+          side: string
+          split_percentage: number | null
+          split_transaction_id: string | null
+        }
+        Insert: {
+          account_id: string
+          amount: number
+          amount_cents: number
+          branch_code: string
+          clm_agency_id?: string | null
+          created_at?: string
+          entry_type: string
+          fee_amount?: number | null
+          generated_file_id?: string | null
+          id?: string
+          id_societaire?: string | null
+          import_id?: string | null
+          is_clm_account?: boolean | null
+          is_split_entry?: boolean | null
+          matricule: string
+          nom_beneficiaire?: string | null
+          original_amount?: number | null
+          payroll_entry_id?: string | null
+          reconciliation_account?: string | null
+          sequence_number: number
+          side: string
+          split_percentage?: number | null
+          split_transaction_id?: string | null
+        }
+        Update: {
+          account_id?: string
+          amount?: number
+          amount_cents?: number
+          branch_code?: string
+          clm_agency_id?: string | null
+          created_at?: string
+          entry_type?: string
+          fee_amount?: number | null
+          generated_file_id?: string | null
+          id?: string
+          id_societaire?: string | null
+          import_id?: string | null
+          is_clm_account?: boolean | null
+          is_split_entry?: boolean | null
+          matricule?: string
+          nom_beneficiaire?: string | null
+          original_amount?: number | null
+          payroll_entry_id?: string | null
+          reconciliation_account?: string | null
+          sequence_number?: number
+          side?: string
+          split_percentage?: number | null
+          split_transaction_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "generated_entries_clm_agency_id_fkey"
+            columns: ["clm_agency_id"]
+            isOneToOne: false
+            referencedRelation: "clm_agency_codes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "generated_entries_generated_file_id_fkey"
+            columns: ["generated_file_id"]
+            isOneToOne: false
+            referencedRelation: "generated_files"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "generated_entries_import_id_fkey"
+            columns: ["import_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_imports"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "generated_entries_payroll_entry_id_fkey"
+            columns: ["payroll_entry_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "generated_entries_split_transaction_id_fkey"
+            columns: ["split_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "split_transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       generated_files: {
         Row: {
           created_at: string
@@ -321,6 +590,68 @@ export type Database = {
             columns: ["import_id"]
             isOneToOne: false
             referencedRelation: "payroll_imports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      integrity_alerts: {
+        Row: {
+          alert_severity: Database["public"]["Enums"]["alert_severity"] | null
+          alert_type: Database["public"]["Enums"]["alert_type"]
+          company_id: string | null
+          created_at: string | null
+          description: string
+          id: string
+          import_id: string | null
+          is_resolved: boolean | null
+          related_entity_id: string | null
+          related_entity_type: string | null
+          resolution_notes: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          suggested_action: string | null
+          title: string
+        }
+        Insert: {
+          alert_severity?: Database["public"]["Enums"]["alert_severity"] | null
+          alert_type: Database["public"]["Enums"]["alert_type"]
+          company_id?: string | null
+          created_at?: string | null
+          description: string
+          id?: string
+          import_id?: string | null
+          is_resolved?: boolean | null
+          related_entity_id?: string | null
+          related_entity_type?: string | null
+          resolution_notes?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          suggested_action?: string | null
+          title: string
+        }
+        Update: {
+          alert_severity?: Database["public"]["Enums"]["alert_severity"] | null
+          alert_type?: Database["public"]["Enums"]["alert_type"]
+          company_id?: string | null
+          created_at?: string | null
+          description?: string
+          id?: string
+          import_id?: string | null
+          is_resolved?: boolean | null
+          related_entity_id?: string | null
+          related_entity_type?: string | null
+          resolution_notes?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          suggested_action?: string | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "integrity_alerts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "company_profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -397,6 +728,104 @@ export type Database = {
           splitting_enabled?: boolean | null
           updated_at?: string
           verification_notes?: string | null
+        }
+        Relationships: []
+      }
+      monthly_flux_counter: {
+        Row: {
+          alert_generated: boolean | null
+          alert_message: string | null
+          company_id: string
+          created_at: string | null
+          flux_number: number
+          flux_status: Database["public"]["Enums"]["flux_status"]
+          frais_appliques: number | null
+          frais_attendus: number | null
+          id: string
+          import_id: string | null
+          processed_at: string | null
+          year_month: string
+        }
+        Insert: {
+          alert_generated?: boolean | null
+          alert_message?: string | null
+          company_id: string
+          created_at?: string | null
+          flux_number: number
+          flux_status?: Database["public"]["Enums"]["flux_status"]
+          frais_appliques?: number | null
+          frais_attendus?: number | null
+          id?: string
+          import_id?: string | null
+          processed_at?: string | null
+          year_month: string
+        }
+        Update: {
+          alert_generated?: boolean | null
+          alert_message?: string | null
+          company_id?: string
+          created_at?: string | null
+          flux_number?: number
+          flux_status?: Database["public"]["Enums"]["flux_status"]
+          frais_appliques?: number | null
+          frais_attendus?: number | null
+          id?: string
+          import_id?: string | null
+          processed_at?: string | null
+          year_month?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "monthly_flux_counter_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "company_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      normalized_matricules: {
+        Row: {
+          created_at: string | null
+          id: string
+          id_societaire: string | null
+          last_seen_at: string | null
+          match_confidence: number | null
+          match_method: string | null
+          matricule_normalized: string
+          matricule_original: string
+          matricule_padded: string | null
+          nom_employe: string | null
+          rib_associe: string | null
+          source_import_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          id_societaire?: string | null
+          last_seen_at?: string | null
+          match_confidence?: number | null
+          match_method?: string | null
+          matricule_normalized: string
+          matricule_original: string
+          matricule_padded?: string | null
+          nom_employe?: string | null
+          rib_associe?: string | null
+          source_import_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          id_societaire?: string | null
+          last_seen_at?: string | null
+          match_confidence?: number | null
+          match_method?: string | null
+          matricule_normalized?: string
+          matricule_original?: string
+          matricule_padded?: string | null
+          nom_employe?: string | null
+          rib_associe?: string | null
+          source_import_id?: string | null
         }
         Relationships: []
       }
@@ -1114,6 +1543,16 @@ export type Database = {
         }
         Returns: string
       }
+      batch_generate_entries: {
+        Args: { p_generated_file_id: string; p_import_id: string }
+        Returns: {
+          entries_clm: number
+          entries_with_split: number
+          total_amount: number
+          total_entries: number
+          total_fees: number
+        }[]
+      }
       batch_insert_entries: {
         Args: { p_entries: Json; p_import_id: string }
         Returns: number
@@ -1168,6 +1607,20 @@ export type Database = {
         }[]
       }
       execute_dry_run: { Args: { p_import_id: string }; Returns: string }
+      generate_split_entries: {
+        Args: {
+          p_base_sequence: number
+          p_generated_file_id: string
+          p_import_id: string
+          p_payroll_entry_id: string
+        }
+        Returns: {
+          entries_generated: number
+          next_sequence: number
+          total_amount: number
+          total_fees: number
+        }[]
+      }
       get_routing_rule: {
         Args: { p_code_agence?: string; p_employeur_code: string }
         Returns: {
@@ -1176,6 +1629,16 @@ export type Database = {
           destination: Database["public"]["Enums"]["routing_destination"]
           frais_fixes: number
           frais_pourcentage: number
+        }[]
+      }
+      identify_clm_account: {
+        Args: { p_rib: string }
+        Returns: {
+          clm_id: string
+          clm_name: string
+          compte_commission: string
+          frais_virement: number
+          is_clm: boolean
         }[]
       }
       preflight_validate_entry: {
@@ -1221,6 +1684,17 @@ export type Database = {
         | "DORMANT"
         | "SUSPENDU"
       account_type: "COURANT" | "EPARGNE" | "DAT" | "CREDIT" | "SPECIAL"
+      alert_severity: "INFO" | "WARNING" | "CRITICAL"
+      alert_type:
+        | "FLUX_MANQUANT"
+        | "FRAIS_NON_PRELEVES"
+        | "MATRICULE_INCONNU"
+        | "RIB_SUSPECT"
+        | "SPLIT_IDENTITE"
+        | "CLM_NON_TROUVE"
+      entry_type: "PRINCIPAL" | "EPARGNE" | "FRAIS_CLM" | "COMMISSION"
+      fee_option: "OUI" | "NON" | "DEUXIEME_FLUX"
+      flux_status: "PENDING" | "COMPLETED" | "SKIPPED"
       preflight_status:
         | "VALID"
         | "REJECTED_FROZEN"
@@ -1235,6 +1709,13 @@ export type Database = {
         | "CAISSE_FEDERALE"
         | "AGENCE_LOCALE"
         | "EXTERNE"
+      staging_status:
+        | "GENERATING"
+        | "VALIDATING"
+        | "READY"
+        | "TRANSFERRED"
+        | "FAILED"
+        | "ARCHIVED"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1372,6 +1853,18 @@ export const Constants = {
         "SUSPENDU",
       ],
       account_type: ["COURANT", "EPARGNE", "DAT", "CREDIT", "SPECIAL"],
+      alert_severity: ["INFO", "WARNING", "CRITICAL"],
+      alert_type: [
+        "FLUX_MANQUANT",
+        "FRAIS_NON_PRELEVES",
+        "MATRICULE_INCONNU",
+        "RIB_SUSPECT",
+        "SPLIT_IDENTITE",
+        "CLM_NON_TROUVE",
+      ],
+      entry_type: ["PRINCIPAL", "EPARGNE", "FRAIS_CLM", "COMMISSION"],
+      fee_option: ["OUI", "NON", "DEUXIEME_FLUX"],
+      flux_status: ["PENDING", "COMPLETED", "SKIPPED"],
       preflight_status: [
         "VALID",
         "REJECTED_FROZEN",
@@ -1387,6 +1880,14 @@ export const Constants = {
         "CAISSE_FEDERALE",
         "AGENCE_LOCALE",
         "EXTERNE",
+      ],
+      staging_status: [
+        "GENERATING",
+        "VALIDATING",
+        "READY",
+        "TRANSFERRED",
+        "FAILED",
+        "ARCHIVED",
       ],
     },
   },
