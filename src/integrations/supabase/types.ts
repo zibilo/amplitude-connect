@@ -131,6 +131,33 @@ export type Database = {
         }
         Relationships: []
       }
+      caisses: {
+        Row: {
+          code_caisse: string
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          nom_caisse: string
+          zone_region: string | null
+        }
+        Insert: {
+          code_caisse: string
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          nom_caisse: string
+          zone_region?: string | null
+        }
+        Update: {
+          code_caisse?: string
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          nom_caisse?: string
+          zone_region?: string | null
+        }
+        Relationships: []
+      }
       clm_agency_codes: {
         Row: {
           code_banque: string
@@ -593,6 +620,122 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      import_entries: {
+        Row: {
+          cco: string
+          cco_original: string | null
+          code_caisse: string
+          correction_details: string | null
+          created_at: string | null
+          id: string
+          is_doublon: boolean | null
+          matricule: string
+          matricule_original: string | null
+          montant: number
+          nom: string
+          periode: string
+          prenom: string | null
+          session_id: string
+          status: string | null
+          validation_error: string | null
+          was_corrected: boolean | null
+        }
+        Insert: {
+          cco: string
+          cco_original?: string | null
+          code_caisse: string
+          correction_details?: string | null
+          created_at?: string | null
+          id?: string
+          is_doublon?: boolean | null
+          matricule: string
+          matricule_original?: string | null
+          montant?: number
+          nom: string
+          periode: string
+          prenom?: string | null
+          session_id: string
+          status?: string | null
+          validation_error?: string | null
+          was_corrected?: boolean | null
+        }
+        Update: {
+          cco?: string
+          cco_original?: string | null
+          code_caisse?: string
+          correction_details?: string | null
+          created_at?: string | null
+          id?: string
+          is_doublon?: boolean | null
+          matricule?: string
+          matricule_original?: string | null
+          montant?: number
+          nom?: string
+          periode?: string
+          prenom?: string | null
+          session_id?: string
+          status?: string | null
+          validation_error?: string | null
+          was_corrected?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "import_entries_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "import_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      import_sessions: {
+        Row: {
+          annee: number
+          corrections_applied: number | null
+          created_at: string | null
+          entreprise: string | null
+          file_name: string
+          id: string
+          lignes_doublons: number | null
+          lignes_rejetees: number | null
+          lignes_valides: number | null
+          mois: number
+          montant_total: number | null
+          status: string | null
+          total_lignes: number | null
+        }
+        Insert: {
+          annee: number
+          corrections_applied?: number | null
+          created_at?: string | null
+          entreprise?: string | null
+          file_name: string
+          id?: string
+          lignes_doublons?: number | null
+          lignes_rejetees?: number | null
+          lignes_valides?: number | null
+          mois: number
+          montant_total?: number | null
+          status?: string | null
+          total_lignes?: number | null
+        }
+        Update: {
+          annee?: number
+          corrections_applied?: number | null
+          created_at?: string | null
+          entreprise?: string | null
+          file_name?: string
+          id?: string
+          lignes_doublons?: number | null
+          lignes_rejetees?: number | null
+          lignes_valides?: number | null
+          mois?: number
+          montant_total?: number | null
+          status?: string | null
+          total_lignes?: number | null
+        }
+        Relationships: []
       }
       integrity_alerts: {
         Row: {
@@ -1248,6 +1391,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      reference_corrections: {
+        Row: {
+          cco_correct: string | null
+          cco_errone: string | null
+          commentaire: string | null
+          created_at: string | null
+          id: string
+          matricule_correct: string
+          matricule_errone: string
+          updated_at: string | null
+        }
+        Insert: {
+          cco_correct?: string | null
+          cco_errone?: string | null
+          commentaire?: string | null
+          created_at?: string | null
+          id?: string
+          matricule_correct: string
+          matricule_errone: string
+          updated_at?: string | null
+        }
+        Update: {
+          cco_correct?: string | null
+          cco_errone?: string | null
+          commentaire?: string | null
+          created_at?: string | null
+          id?: string
+          matricule_correct?: string
+          matricule_errone?: string
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       rib_corrections: {
         Row: {

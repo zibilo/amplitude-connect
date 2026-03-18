@@ -12,6 +12,10 @@ import { SplittingRulesManager } from '@/components/SplittingRulesManager';
 import { MonthlyFluxTracker } from '@/components/MonthlyFluxTracker';
 import { IntegrityAlertsPanel } from '@/components/IntegrityAlertsPanel';
 import { MatriculeNormalizerTool } from '@/components/MatriculeNormalizerTool';
+import { ImportWizard } from '@/components/ImportWizard';
+import { ReferenceTableManager } from '@/components/ReferenceTableManager';
+import { CaissesManager } from '@/components/CaissesManager';
+import { ImportHistory } from '@/components/ImportHistory';
 import { ImportResult, GeneratedFile, ReconciliationReport } from '@/types/payroll';
 
 const Index = () => {
@@ -98,7 +102,19 @@ const Index = () => {
           </div>
         );
 
+      case 'import-wizard':
+        return <ImportWizard />;
+      
+      case 'history':
+        return <ImportHistory />;
+
       // Configuration modules
+      case 'reference-table':
+        return <ReferenceTableManager />;
+      
+      case 'caisses':
+        return <CaissesManager />;
+      
       case 'companies':
         return <CompanyProfilesManager />;
       

@@ -12,7 +12,14 @@ import {
   Calendar,
   AlertTriangle,
   Hash,
-  Settings
+  Settings,
+  Upload,
+  BookOpen,
+  MapPin,
+  History,
+  Search,
+  PiggyBank,
+  BarChart3
 } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -33,10 +40,14 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { id: 'dashboard', label: 'Tableau de Bord', icon: LayoutDashboard, section: 'principal' },
+  { id: 'import-wizard', label: 'Importation', icon: Upload, section: 'principal' },
   { id: 'import', label: 'Import Excel', icon: FileInput, section: 'principal' },
   { id: 'generate', label: 'Génération', icon: FileOutput, section: 'principal' },
   { id: 'reconciliation', label: 'Réconciliation', icon: FileCheck2, section: 'principal' },
+  { id: 'history', label: 'Historique', icon: History, section: 'principal' },
   { id: 'audit', label: 'Journal d\'Audit', icon: ClipboardList, section: 'principal' },
+  { id: 'reference-table', label: 'Table Référence', icon: BookOpen, section: 'config' },
+  { id: 'caisses', label: 'Table Caisses', icon: MapPin, section: 'config' },
   { id: 'companies', label: 'Entreprises', icon: Building2, section: 'config' },
   { id: 'clm', label: 'Agences CLM', icon: Landmark, section: 'config' },
   { id: 'splitting', label: 'Règles Splitting', icon: GitBranch, section: 'config' },
