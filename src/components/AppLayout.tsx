@@ -12,7 +12,14 @@ import {
   Calendar,
   AlertTriangle,
   Hash,
-  Settings
+  Settings,
+  Upload,
+  BookOpen,
+  MapPin,
+  History,
+  Search,
+  PiggyBank,
+  BarChart3
 } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
