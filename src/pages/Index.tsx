@@ -102,7 +102,19 @@ const Index = () => {
           </div>
         );
 
+      case 'import-wizard':
+        return <ImportWizard />;
+      
+      case 'history':
+        return <ImportHistory />;
+
       // Configuration modules
+      case 'reference-table':
+        return <ReferenceTableManager />;
+      
+      case 'caisses':
+        return <CaissesManager />;
+      
       case 'companies':
         return <CompanyProfilesManager />;
       
