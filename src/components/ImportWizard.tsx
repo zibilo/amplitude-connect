@@ -189,11 +189,6 @@ export function ImportWizard() {
       const correctedFields: Record<string, { from: string; to: string }> = {};
       let isDuplicate = false;
 
-      // Check matricule length
-      if (row.matricule.length > 7) {
-        errors.push('Matricule > 7 caractères');
-      }
-
       // Duplicate detection: code_caisse + CCO
       const dupeKey = `${row.code_caisse}|${row.cco}`;
       if (seen.has(dupeKey)) {
