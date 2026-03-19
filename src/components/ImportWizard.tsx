@@ -97,20 +97,74 @@ export function ImportWizard() {
     }
   }, [toast]);
 
+  // Normalize any period format to { month, year } or null
+  const normalizePeriod = useCallback((raw: string): { month: string; year: string } | null => {
+    if (!raw) return null;
+    const s = raw.trim();
+
+    // MM/YYYY or MM-YYYY or MM.YYYY
+    let m = s.match(/^(\d{1,2})[\/\-.](\d{4})$/);
+    if (m) return { month: m[1].padStart(2, '0'), year: m[2] };
+
+    // YYYY/MM or YYYY-MM or YYYY.MM
+    m = s.match(/^(\d{4})[\/\-.](\d{1,2})$/);
+    if (m) return { month: m[2].padStart(2, '0'), year: m[1] };
+
+    // YYYYMM (6 digits)
+    m = s.match(/^(\d{4})(\d{2})$/);
+    if (m) return { month: m[2], year: m[1] };
+
+    // YYYYM (5 digits, e.g. 20262 = Feb 2026)
+    m = s.match(/^(\d{4})(\d{1})$/);
+    if (m) return { month: m[2].padStart(2, '0'), year: m[1] };
+
+    // MMYYYY (6 digits starting with valid month)
+    m = s.match(/^(\d{2})(\d{4})$/);
+    if (m && parseInt(m[1]) >= 1 && parseInt(m[1]) <= 12) return { month: m[1], year: m[2] };
+
+    // "Janvier 2026", "Jan 2026", "février 2026", etc.
+    const monthNames: Record<string, string> = {
+      'janvier': '01', 'jan': '01', 'fevrier': '02', 'février': '02', 'fev': '02', 'fév': '02',
+      'mars': '03', 'mar': '03', 'avril': '04', 'avr': '04', 'mai': '05',
+      'juin': '06', 'jun': '06', 'juillet': '07', 'jul': '07', 'juil': '07',
+      'aout': '08', 'août': '08', 'aou': '08', 'septembre': '09', 'sep': '09', 'sept': '09',
+      'octobre': '10', 'oct': '10', 'novembre': '11', 'nov': '11', 'decembre': '12', 'décembre': '12', 'dec': '12', 'déc': '12',
+    };
+    m = s.match(/^([a-zéûôàè]+)\s*(\d{4})$/i);
+    if (m) {
+      const mo = monthNames[m[1].toLowerCase()];
+      if (mo) return { month: mo, year: m[2] };
+    }
+
+    // "2026 Février"
+    m = s.match(/^(\d{4})\s*([a-zéûôàè]+)$/i);
+    if (m) {
+      const mo = monthNames[m[2].toLowerCase()];
+      if (mo) return { month: mo, year: m[1] };
+    }
+
+    return null;
+  }, []);
+
   // Step 3: Verify period
   const verifyPeriod = useCallback(() => {
-    const selectedPeriod = `${mois.padStart(2, '0')}/${annee}`;
+    const selectedMonth = mois.padStart(2, '0');
+    const selectedYear = annee;
     const errors: string[] = [];
 
     parsedData.forEach((row, i) => {
-      if (row.periode && row.periode !== selectedPeriod) {
-        errors.push(`Ligne ${i + 1}: période "${row.periode}" ≠ "${selectedPeriod}"`);
+      if (!row.periode) return;
+      const parsed = normalizePeriod(row.periode);
+      if (!parsed) {
+        errors.push(`Ligne ${i + 1}: format de période non reconnu "${row.periode}"`);
+      } else if (parsed.month !== selectedMonth || parsed.year !== selectedYear) {
+        errors.push(`Ligne ${i + 1}: période "${row.periode}" (${parsed.month}/${parsed.year}) ≠ "${selectedMonth}/${selectedYear}"`);
       }
     });
 
     setPeriodValid(errors.length === 0);
     setPeriodErrors(errors);
-  }, [mois, annee, parsedData]);
+  }, [mois, annee, parsedData, normalizePeriod]);
 
   // Step 4: Validate data
   const validateData = useCallback(async () => {
