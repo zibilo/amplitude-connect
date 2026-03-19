@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { FolderOpen, Download, Eye, FileSpreadsheet, Loader2 } from 'lucide-react';
+import { FolderOpen, Eye, Loader2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 interface ImportSession {
@@ -66,12 +66,13 @@ export function ImportHistory() {
 
   const viewDetails = async (session: ImportSession) => {
     setSelectedSession(session);
+    // Fetch ALL entries for this session (not just valid), increase limit
     const { data } = await supabase
       .from('import_entries')
       .select('*')
       .eq('session_id', session.id)
-      .eq('status', 'valid')
-      .order('code_caisse');
+      .order('code_caisse')
+      .limit(5000);
     if (data) setEntries(data as ImportEntry[]);
     setDetailOpen(true);
   };
@@ -84,15 +85,20 @@ export function ImportHistory() {
     setGenerating(session.id);
 
     try {
-      // Fetch entries for this session
-      const { data: sessionEntries } = await supabase
+      // Fetch ALL entries for this session (remove status filter, increase limit)
+      const { data: sessionEntries, error } = await supabase
         .from('import_entries')
         .select('*')
         .eq('session_id', session.id)
-        .eq('status', 'valid');
+        .limit(10000);
+
+      if (error) {
+        toast({ title: 'Erreur', description: error.message, variant: 'destructive' });
+        return;
+      }
 
       if (!sessionEntries || sessionEntries.length === 0) {
-        toast({ title: 'Aucune donnée', description: 'Pas d\'entrées valides pour cet import', variant: 'destructive' });
+        toast({ title: 'Aucune donnée', description: `Pas d'entrées trouvées pour la session ${session.file_name}. Vérifiez que l'import a bien été effectué.`, variant: 'destructive' });
         return;
       }
 
@@ -107,7 +113,6 @@ export function ImportHistory() {
       const moisStr = String(session.mois).padStart(2, '0');
       const folderName = `SARIS_${moisStr}_${session.annee}`;
 
-      // Generate one Excel per caisse
       const allFiles: { name: string; entries: typeof sessionEntries }[] = [];
       byCaisse.forEach((caisseEntries, code) => {
         const nom = getCaisseName(code).toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
@@ -117,7 +122,6 @@ export function ImportHistory() {
         });
       });
 
-      // Generate and download each file
       for (const file of allFiles) {
         const wb = XLSX.utils.book_new();
         const wsData = file.entries.map(e => ({
@@ -167,6 +171,7 @@ export function ImportHistory() {
               <TableRow>
                 <TableHead>Date</TableHead>
                 <TableHead>Période</TableHead>
+                <TableHead>Type</TableHead>
                 <TableHead>Fichier</TableHead>
                 <TableHead className="text-right">Lignes</TableHead>
                 <TableHead className="text-right">Valides</TableHead>
@@ -179,12 +184,19 @@ export function ImportHistory() {
             <TableBody>
               {sessions.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center text-muted-foreground py-8">Aucun import effectué</TableCell>
+                  <TableCell colSpan={10} className="text-center text-muted-foreground py-8">Aucun import effectué</TableCell>
                 </TableRow>
               ) : sessions.map(s => (
                 <TableRow key={s.id}>
                   <TableCell className="text-sm">{new Date(s.created_at).toLocaleDateString('fr-FR')}</TableCell>
                   <TableCell className="font-mono">{String(s.mois).padStart(2, '0')}/{s.annee}</TableCell>
+                  <TableCell>
+                    {s.entreprise === 'QUINZAINE' ? (
+                      <Badge variant="secondary" className="text-xs">Quinzaine</Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-xs">Standard</Badge>
+                    )}
+                  </TableCell>
                   <TableCell className="text-sm max-w-[200px] truncate">{s.file_name}</TableCell>
                   <TableCell className="text-right">{s.total_lignes}</TableCell>
                   <TableCell className="text-right text-success">{s.lignes_valides}</TableCell>
@@ -223,10 +235,10 @@ export function ImportHistory() {
           <DialogHeader>
             <DialogTitle>
               Import du {selectedSession && new Date(selectedSession.created_at).toLocaleDateString('fr-FR')} — {selectedSession && `${String(selectedSession.mois).padStart(2, '0')}/${selectedSession.annee}`}
+              {selectedSession?.entreprise === 'QUINZAINE' && <Badge variant="secondary" className="ml-2">Quinzaine</Badge>}
             </DialogTitle>
           </DialogHeader>
 
-          {/* Grouped by caisse */}
           {selectedSession && (() => {
             const grouped = new Map<string, ImportEntry[]>();
             entries.forEach(e => {
@@ -238,7 +250,13 @@ export function ImportHistory() {
               <div className="space-y-4">
                 <div className="text-sm text-muted-foreground">
                   Structure: <span className="font-mono font-bold">SARIS_{String(selectedSession.mois).padStart(2, '0')}_{selectedSession.annee}/</span>
+                  {' · '}{entries.length} entrées trouvées
                 </div>
+                {entries.length === 0 && (
+                  <div className="text-center py-8 text-muted-foreground">
+                    Aucune entrée trouvée pour cette session
+                  </div>
+                )}
                 {Array.from(grouped.entries()).map(([code, caisseEntries]) => (
                   <Card key={code}>
                     <CardHeader className="py-3">

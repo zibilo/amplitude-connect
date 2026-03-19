@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
+import { Checkbox } from '@/components/ui/checkbox';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { 
@@ -59,6 +60,9 @@ export function ImportWizard() {
   const [step, setStep] = useState(1);
   const [mois, setMois] = useState('');
   const [annee, setAnnee] = useState(new Date().getFullYear().toString());
+  const [isQuinzaine, setIsQuinzaine] = useState(false);
+  const [duplicateCheckDone, setDuplicateCheckDone] = useState(false);
+  const [duplicateExists, setDuplicateExists] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [parsedData, setParsedData] = useState<ParsedRow[]>([]);
   const [validationResults, setValidationResults] = useState<ValidationResult[]>([]);
@@ -67,6 +71,21 @@ export function ImportWizard() {
   const [isImporting, setIsImporting] = useState(false);
   const [importProgress, setImportProgress] = useState(0);
   const [importComplete, setImportComplete] = useState(false);
+
+  // Check if an import already exists for this month/year
+  const checkDuplicateMonth = useCallback(async () => {
+    if (!mois || !annee) return;
+    const { data } = await supabase
+      .from('import_sessions')
+      .select('id')
+      .eq('mois', parseInt(mois))
+      .eq('annee', parseInt(annee))
+      .eq('status', 'completed');
+
+    const exists = (data && data.length > 0);
+    setDuplicateExists(!!exists);
+    setDuplicateCheckDone(true);
+  }, [mois, annee]);
 
   // Step 1 → 2: Select file
   const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -102,27 +121,21 @@ export function ImportWizard() {
     if (!raw) return null;
     const s = raw.trim();
 
-    // MM/YYYY or MM-YYYY or MM.YYYY
     let m = s.match(/^(\d{1,2})[\/\-.](\d{4})$/);
     if (m) return { month: m[1].padStart(2, '0'), year: m[2] };
 
-    // YYYY/MM or YYYY-MM or YYYY.MM
     m = s.match(/^(\d{4})[\/\-.](\d{1,2})$/);
     if (m) return { month: m[2].padStart(2, '0'), year: m[1] };
 
-    // YYYYMM (6 digits)
     m = s.match(/^(\d{4})(\d{2})$/);
     if (m) return { month: m[2], year: m[1] };
 
-    // YYYYM (5 digits, e.g. 20262 = Feb 2026)
     m = s.match(/^(\d{4})(\d{1})$/);
     if (m) return { month: m[2].padStart(2, '0'), year: m[1] };
 
-    // MMYYYY (6 digits starting with valid month)
     m = s.match(/^(\d{2})(\d{4})$/);
     if (m && parseInt(m[1]) >= 1 && parseInt(m[1]) <= 12) return { month: m[1], year: m[2] };
 
-    // "Janvier 2026", "Jan 2026", "février 2026", etc.
     const monthNames: Record<string, string> = {
       'janvier': '01', 'jan': '01', 'fevrier': '02', 'février': '02', 'fev': '02', 'fév': '02',
       'mars': '03', 'mar': '03', 'avril': '04', 'avr': '04', 'mai': '05',
@@ -136,7 +149,6 @@ export function ImportWizard() {
       if (mo) return { month: mo, year: m[2] };
     }
 
-    // "2026 Février"
     m = s.match(/^(\d{4})\s*([a-zéûôàè]+)$/i);
     if (m) {
       const mo = monthNames[m[2].toLowerCase()];
@@ -168,7 +180,6 @@ export function ImportWizard() {
 
   // Step 4: Validate data
   const validateData = useCallback(async () => {
-    // Fetch reference corrections
     const { data: corrections } = await supabase.from('reference_corrections').select('*');
     const correctionMap = new Map<string, { matricule_correct: string; cco_correct: string | null }>();
     corrections?.forEach(c => {
@@ -178,7 +189,6 @@ export function ImportWizard() {
       });
     });
 
-    // Detect duplicates: same code_caisse + same CCO
     const seen = new Map<string, number>();
     const matriculeCount = new Map<string, number>();
 
@@ -189,7 +199,6 @@ export function ImportWizard() {
       const correctedFields: Record<string, { from: string; to: string }> = {};
       let isDuplicate = false;
 
-      // Duplicate detection: code_caisse + CCO
       const dupeKey = `${row.code_caisse}|${row.cco}`;
       if (seen.has(dupeKey)) {
         isDuplicate = true;
@@ -198,9 +207,6 @@ export function ImportWizard() {
         seen.set(dupeKey, index);
       }
 
-      // Same code_caisse + different CCO = OK (no error)
-
-      // Apply corrections from reference table
       const corrKey = `${row.matricule}|${row.cco}`;
       const corrKeyMatOnly = `${row.matricule}|`;
       const correction = correctionMap.get(corrKey) || correctionMap.get(corrKeyMatOnly);
@@ -217,7 +223,6 @@ export function ImportWizard() {
         }
       }
 
-      // Handle duplicate matricules: auto-suffix
       const matCount = (matriculeCount.get(row.matricule) || 0) + 1;
       matriculeCount.set(row.matricule, matCount);
       if (matCount > 1) {
@@ -240,13 +245,13 @@ export function ImportWizard() {
     setImportProgress(0);
 
     try {
-      // Create session
       const { data: session, error: sessionErr } = await supabase
         .from('import_sessions')
         .insert({
           mois: parseInt(mois),
           annee: parseInt(annee),
           file_name: file?.name || 'unknown',
+          entreprise: isQuinzaine ? 'QUINZAINE' : null,
           total_lignes: validationResults.length,
           lignes_valides: validationResults.filter(r => r.errors.length === 0).length,
           lignes_rejetees: validationResults.filter(r => r.errors.length > 0).length,
@@ -262,7 +267,6 @@ export function ImportWizard() {
 
       setImportProgress(30);
 
-      // Insert entries in batches
       const validEntries = validationResults.filter(r => r.errors.length === 0);
       const batchSize = 500;
       for (let i = 0; i < validEntries.length; i += batchSize) {
@@ -299,7 +303,7 @@ export function ImportWizard() {
     } finally {
       setIsImporting(false);
     }
-  }, [mois, annee, file, validationResults, toast]);
+  }, [mois, annee, file, isQuinzaine, validationResults, toast]);
 
   const validCount = validationResults.filter(r => r.errors.length === 0).length;
   const errorCount = validationResults.filter(r => r.errors.length > 0).length;
@@ -307,7 +311,12 @@ export function ImportWizard() {
 
   const canAdvance = () => {
     switch (step) {
-      case 1: return mois !== '' && annee !== '';
+      case 1: {
+        if (!mois || !annee) return false;
+        if (!duplicateCheckDone) return false;
+        if (duplicateExists && !isQuinzaine) return false;
+        return true;
+      }
       case 2: return parsedData.length > 0;
       case 3: return periodValid === true;
       case 4: return validationResults.length > 0 && errorCount === 0;
@@ -359,7 +368,7 @@ export function ImportWizard() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Mois</Label>
-                  <Select value={mois} onValueChange={setMois}>
+                  <Select value={mois} onValueChange={(v) => { setMois(v); setDuplicateCheckDone(false); setDuplicateExists(false); setIsQuinzaine(false); }}>
                     <SelectTrigger><SelectValue placeholder="Mois" /></SelectTrigger>
                     <SelectContent>
                       {MONTHS.map(m => (
@@ -373,11 +382,49 @@ export function ImportWizard() {
                   <Input 
                     type="number" 
                     value={annee} 
-                    onChange={e => setAnnee(e.target.value)}
+                    onChange={e => { setAnnee(e.target.value); setDuplicateCheckDone(false); setDuplicateExists(false); setIsQuinzaine(false); }}
                     min={2000} max={2100}
                   />
                 </div>
               </div>
+
+              {mois && annee && !duplicateCheckDone && (
+                <Button variant="outline" onClick={checkDuplicateMonth}>
+                  <Shield className="h-4 w-4 mr-2" />
+                  Vérifier la disponibilité
+                </Button>
+              )}
+
+              {duplicateCheckDone && !duplicateExists && (
+                <Alert>
+                  <CheckCircle2 className="h-4 w-4 text-success" />
+                  <AlertTitle>Période disponible</AlertTitle>
+                  <AlertDescription>Aucun import existant pour {mois.padStart(2, '0')}/{annee}</AlertDescription>
+                </Alert>
+              )}
+
+              {duplicateCheckDone && duplicateExists && (
+                <div className="space-y-3">
+                  <Alert variant="destructive">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertTitle>Import déjà effectué</AlertTitle>
+                    <AlertDescription>
+                      Un fichier a déjà été importé pour {mois.padStart(2, '0')}/{annee}. 
+                      Si vous souhaitez importer un second fichier pour ce mois, cochez la case ci-dessous pour indiquer qu'il s'agit d'une quinzaine.
+                    </AlertDescription>
+                  </Alert>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox 
+                      id="quinzaine" 
+                      checked={isQuinzaine} 
+                      onCheckedChange={(checked) => setIsQuinzaine(checked === true)}
+                    />
+                    <Label htmlFor="quinzaine" className="text-sm font-medium cursor-pointer">
+                      Il s'agit d'une quinzaine (2ᵉ import du mois)
+                    </Label>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -388,6 +435,11 @@ export function ImportWizard() {
                 <CardTitle>Choisir le fichier</CardTitle>
                 <CardDescription>Format: PERIODE, MATRICULE, NOM, PRENOM, CODE CAISSE, CCO, MONTANT</CardDescription>
               </CardHeader>
+              {isQuinzaine && (
+                <Badge variant="secondary" className="bg-warning/10 text-warning border-warning/30">
+                  🔄 Import quinzaine — 2ᵉ fichier pour {mois.padStart(2, '0')}/{annee}
+                </Badge>
+              )}
               <div className="dropzone cursor-pointer relative">
                 <input 
                   type="file" 
@@ -446,6 +498,7 @@ export function ImportWizard() {
                 <CardTitle>Vérification de la période</CardTitle>
                 <CardDescription>
                   Période sélectionnée : <strong>{mois.padStart(2, '0')}/{annee}</strong>
+                  {isQuinzaine && <Badge variant="secondary" className="ml-2">Quinzaine</Badge>}
                 </CardDescription>
               </CardHeader>
               {periodValid === null && (
@@ -569,6 +622,7 @@ export function ImportWizard() {
                 <CardTitle>Confirmation d'import</CardTitle>
                 <CardDescription>
                   {validCount} lignes prêtes à être importées pour {mois.padStart(2, '0')}/{annee}
+                  {isQuinzaine && ' (Quinzaine)'}
                 </CardDescription>
               </CardHeader>
 
@@ -577,6 +631,9 @@ export function ImportWizard() {
                 <div className="text-sm"><span className="text-muted-foreground">Période:</span> {mois.padStart(2, '0')}/{annee}</div>
                 <div className="text-sm"><span className="text-muted-foreground">Lignes valides:</span> {validCount}</div>
                 <div className="text-sm"><span className="text-muted-foreground">Montant total:</span> {validationResults.reduce((s, r) => s + (r.errors.length === 0 ? r.row.montant : 0), 0).toLocaleString('fr-FR')} FCFA</div>
+                {isQuinzaine && (
+                  <div className="text-sm col-span-2"><Badge variant="secondary">🔄 Quinzaine</Badge></div>
+                )}
               </div>
 
               {isImporting && (
@@ -614,6 +671,7 @@ export function ImportWizard() {
         </Button>
         <Button 
           onClick={() => {
+            if (step === 1 && !duplicateCheckDone) { checkDuplicateMonth(); return; }
             if (step === 3 && periodValid === null) { verifyPeriod(); return; }
             if (step === 4 && validationResults.length === 0) { validateData(); return; }
             setStep(s => s + 1);

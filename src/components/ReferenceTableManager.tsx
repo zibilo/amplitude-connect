@@ -1,13 +1,16 @@
-import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { useState, useEffect, useCallback } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Pencil, Trash2, Search, ArrowRight } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, ArrowRight, Upload, FileSpreadsheet, CheckCircle2, Loader2 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 
 interface Correction {
   id: string;
@@ -25,6 +28,13 @@ export function ReferenceTableManager() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Correction | null>(null);
   const [form, setForm] = useState({ matricule_errone: '', cco_errone: '', matricule_correct: '', cco_correct: '', commentaire: '' });
+
+  // Import Excel state
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importPreview, setImportPreview] = useState<Array<Record<string, string>>>([]);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<{ inserted: number; skipped: number } | null>(null);
 
   const fetchData = async () => {
     const { data } = await supabase.from('reference_corrections').select('*').order('created_at', { ascending: false });
@@ -73,6 +83,69 @@ export function ReferenceTableManager() {
     setDialogOpen(true);
   };
 
+  // Excel import handling
+  const handleImportFile = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    setImportFile(f);
+    setImportResult(null);
+
+    try {
+      const buffer = await f.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type: 'array' });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const json = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet);
+
+      const rows = json.map(row => ({
+        matricule_errone: String(row['MATRICULE_ERRONE'] || row['matricule_errone'] || row['MATRICULE ERRONE'] || '').trim(),
+        cco_errone: String(row['CCO_ERRONE'] || row['cco_errone'] || row['CCO ERRONE'] || '').trim(),
+        matricule_correct: String(row['MATRICULE_CORRECT'] || row['matricule_correct'] || row['MATRICULE CORRECT'] || '').trim(),
+        cco_correct: String(row['CCO_CORRECT'] || row['cco_correct'] || row['CCO CORRECT'] || '').trim(),
+        commentaire: String(row['COMMENTAIRE'] || row['commentaire'] || '').trim(),
+      }));
+
+      setImportPreview(rows.filter(r => r.matricule_errone && r.matricule_correct));
+      toast({ title: `${rows.length} lignes lues`, description: f.name });
+    } catch {
+      toast({ title: 'Erreur de lecture', description: 'Format de fichier invalide', variant: 'destructive' });
+    }
+  }, [toast]);
+
+  const doImportReference = useCallback(async () => {
+    if (importPreview.length === 0) return;
+    setImporting(true);
+
+    try {
+      // Build set of existing corrections for dedup
+      const existing = new Set(corrections.map(c => `${c.matricule_errone}|${c.cco_errone || ''}`));
+      
+      const toInsert = importPreview.filter(r => !existing.has(`${r.matricule_errone}|${r.cco_errone}`));
+      const skipped = importPreview.length - toInsert.length;
+
+      if (toInsert.length > 0) {
+        const batchSize = 500;
+        for (let i = 0; i < toInsert.length; i += batchSize) {
+          const batch = toInsert.slice(i, i + batchSize).map(r => ({
+            matricule_errone: r.matricule_errone,
+            cco_errone: r.cco_errone || null,
+            matricule_correct: r.matricule_correct,
+            cco_correct: r.cco_correct || null,
+            commentaire: r.commentaire || null,
+          }));
+          await supabase.from('reference_corrections').insert(batch);
+        }
+      }
+
+      setImportResult({ inserted: toInsert.length, skipped });
+      toast({ title: 'Import terminé', description: `${toInsert.length} corrections ajoutées, ${skipped} ignorées (doublons)` });
+      fetchData();
+    } catch {
+      toast({ title: 'Erreur d\'import', variant: 'destructive' });
+    } finally {
+      setImporting(false);
+    }
+  }, [importPreview, corrections, toast]);
+
   const filtered = corrections.filter(c =>
     [c.matricule_errone, c.matricule_correct, c.cco_errone, c.cco_correct, c.commentaire]
       .filter(Boolean).join(' ').toLowerCase().includes(search.toLowerCase())
@@ -109,6 +182,85 @@ export function ReferenceTableManager() {
             className="pl-9"
           />
         </div>
+
+        {/* Import Excel button */}
+        <Dialog open={importDialogOpen} onOpenChange={(o) => { setImportDialogOpen(o); if (!o) { setImportFile(null); setImportPreview([]); setImportResult(null); } }}>
+          <DialogTrigger asChild>
+            <Button variant="outline">
+              <Upload className="h-4 w-4 mr-2" /> Importer Excel
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-2xl max-h-[80vh] overflow-auto">
+            <DialogHeader>
+              <DialogTitle>Importer un fichier de référence</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Colonnes attendues : <span className="font-mono text-xs">MATRICULE_ERRONE, CCO_ERRONE, MATRICULE_CORRECT, CCO_CORRECT, COMMENTAIRE</span>
+              </p>
+              <div className="dropzone cursor-pointer relative">
+                <input 
+                  type="file" 
+                  accept=".xlsx,.xls,.csv" 
+                  onChange={handleImportFile}
+                  className="absolute inset-0 opacity-0 cursor-pointer"
+                />
+                <FileSpreadsheet className="h-10 w-10 mx-auto text-muted-foreground mb-2" />
+                <p className="text-sm text-muted-foreground">
+                  {importFile ? importFile.name : 'Cliquez ou glissez un fichier Excel'}
+                </p>
+              </div>
+
+              {importPreview.length > 0 && !importResult && (
+                <>
+                  <Badge variant="secondary">{importPreview.length} corrections à importer</Badge>
+                  <div className="rounded-lg border overflow-auto max-h-48">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Matricule erroné</TableHead>
+                          <TableHead>CCO erroné</TableHead>
+                          <TableHead>→</TableHead>
+                          <TableHead>Matricule correct</TableHead>
+                          <TableHead>CCO correct</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {importPreview.slice(0, 10).map((r, i) => (
+                          <TableRow key={i}>
+                            <TableCell className="font-mono text-destructive">{r.matricule_errone}</TableCell>
+                            <TableCell className="font-mono text-destructive">{r.cco_errone || '—'}</TableCell>
+                            <TableCell><ArrowRight className="h-3 w-3 text-muted-foreground" /></TableCell>
+                            <TableCell className="font-mono text-success">{r.matricule_correct}</TableCell>
+                            <TableCell className="font-mono text-success">{r.cco_correct || '—'}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                    {importPreview.length > 10 && (
+                      <p className="text-xs text-muted-foreground p-2 text-center">...et {importPreview.length - 10} autres</p>
+                    )}
+                  </div>
+                  <Button onClick={doImportReference} disabled={importing} className="w-full">
+                    {importing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
+                    Importer {importPreview.length} corrections
+                  </Button>
+                </>
+              )}
+
+              {importResult && (
+                <Alert>
+                  <CheckCircle2 className="h-4 w-4 text-success" />
+                  <AlertTitle>Import terminé</AlertTitle>
+                  <AlertDescription>
+                    {importResult.inserted} corrections ajoutées, {importResult.skipped} ignorées (déjà existantes)
+                  </AlertDescription>
+                </Alert>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+
         <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) { setEditing(null); setForm({ matricule_errone: '', cco_errone: '', matricule_correct: '', cco_correct: '', commentaire: '' }); } }}>
           <DialogTrigger asChild>
             <Button><Plus className="h-4 w-4 mr-2" /> Ajouter</Button>
