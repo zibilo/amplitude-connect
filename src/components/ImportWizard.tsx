@@ -97,25 +97,74 @@ export function ImportWizard() {
     }
   }, [toast]);
 
+  // Normalize any period format to { month, year } or null
+  const normalizePeriod = useCallback((raw: string): { month: string; year: string } | null => {
+    if (!raw) return null;
+    const s = raw.trim();
+
+    // MM/YYYY or MM-YYYY or MM.YYYY
+    let m = s.match(/^(\d{1,2})[\/\-.](\d{4})$/);
+    if (m) return { month: m[1].padStart(2, '0'), year: m[2] };
+
+    // YYYY/MM or YYYY-MM or YYYY.MM
+    m = s.match(/^(\d{4})[\/\-.](\d{1,2})$/);
+    if (m) return { month: m[2].padStart(2, '0'), year: m[1] };
+
+    // YYYYMM (6 digits)
+    m = s.match(/^(\d{4})(\d{2})$/);
+    if (m) return { month: m[2], year: m[1] };
+
+    // YYYYM (5 digits, e.g. 20262 = Feb 2026)
+    m = s.match(/^(\d{4})(\d{1})$/);
+    if (m) return { month: m[2].padStart(2, '0'), year: m[1] };
+
+    // MMYYYY (6 digits starting with valid month)
+    m = s.match(/^(\d{2})(\d{4})$/);
+    if (m && parseInt(m[1]) >= 1 && parseInt(m[1]) <= 12) return { month: m[1], year: m[2] };
+
+    // "Janvier 2026", "Jan 2026", "février 2026", etc.
+    const monthNames: Record<string, string> = {
+      'janvier': '01', 'jan': '01', 'fevrier': '02', 'février': '02', 'fev': '02', 'fév': '02',
+      'mars': '03', 'mar': '03', 'avril': '04', 'avr': '04', 'mai': '05',
+      'juin': '06', 'jun': '06', 'juillet': '07', 'jul': '07', 'juil': '07',
+      'aout': '08', 'août': '08', 'aou': '08', 'septembre': '09', 'sep': '09', 'sept': '09',
+      'octobre': '10', 'oct': '10', 'novembre': '11', 'nov': '11', 'decembre': '12', 'décembre': '12', 'dec': '12', 'déc': '12',
+    };
+    m = s.match(/^([a-zéûôàè]+)\s*(\d{4})$/i);
+    if (m) {
+      const mo = monthNames[m[1].toLowerCase()];
+      if (mo) return { month: mo, year: m[2] };
+    }
+
+    // "2026 Février"
+    m = s.match(/^(\d{4})\s*([a-zéûôàè]+)$/i);
+    if (m) {
+      const mo = monthNames[m[2].toLowerCase()];
+      if (mo) return { month: mo, year: m[1] };
+    }
+
+    return null;
+  }, []);
+
   // Step 3: Verify period
   const verifyPeriod = useCallback(() => {
-    // On définit les deux formats acceptables basés sur la sélection utilisateur
-    const selectedPeriodSlash = `${mois.padStart(2, '0')}/${annee}`; // ex: 02/2026
-    const selectedPeriodCompact = `${annee}${mois.padStart(2, '0')}`; // ex: 202602
-    
+    const selectedMonth = mois.padStart(2, '0');
+    const selectedYear = annee;
     const errors: string[] = [];
 
     parsedData.forEach((row, i) => {
-      const rowPeriode = String(row.periode || '').trim();
-      // On valide si la période de la ligne correspond à l'un des deux formats
-      if (rowPeriode && rowPeriode !== selectedPeriodSlash && rowPeriode !== selectedPeriodCompact) {
-        errors.push(`Ligne ${i + 1}: période "${rowPeriode}" incorrecte (attendu "${selectedPeriodSlash}" ou "${selectedPeriodCompact}")`);
+      if (!row.periode) return;
+      const parsed = normalizePeriod(row.periode);
+      if (!parsed) {
+        errors.push(`Ligne ${i + 1}: format de période non reconnu "${row.periode}"`);
+      } else if (parsed.month !== selectedMonth || parsed.year !== selectedYear) {
+        errors.push(`Ligne ${i + 1}: période "${row.periode}" (${parsed.month}/${parsed.year}) ≠ "${selectedMonth}/${selectedYear}"`);
       }
     });
 
     setPeriodValid(errors.length === 0);
     setPeriodErrors(errors);
-  }, [mois, annee, parsedData]);
+  }, [mois, annee, parsedData, normalizePeriod]);
 
   // Step 4: Validate data
   const validateData = useCallback(async () => {
@@ -141,8 +190,8 @@ export function ImportWizard() {
       let isDuplicate = false;
 
       // Check matricule length
-      if (row.matricule.length > 20) {
-        errors.push('Matricule trop long');
+      if (row.matricule.length > 7) {
+        errors.push('Matricule > 7 caractères');
       }
 
       // Duplicate detection: code_caisse + CCO
@@ -153,6 +202,8 @@ export function ImportWizard() {
       } else {
         seen.set(dupeKey, index);
       }
+
+      // Same code_caisse + different CCO = OK (no error)
 
       // Apply corrections from reference table
       const corrKey = `${row.matricule}|${row.cco}`;
@@ -340,7 +391,7 @@ export function ImportWizard() {
             <div className="space-y-4">
               <CardHeader className="p-0">
                 <CardTitle>Choisir le fichier</CardTitle>
-                <CardDescription>Format requis : PERIODE, MATRICULE, NOM, PRENOM, CODE CAISSE, CCO, MONTANT</CardDescription>
+                <CardDescription>Format: PERIODE, MATRICULE, NOM, PRENOM, CODE CAISSE, CCO, MONTANT</CardDescription>
               </CardHeader>
               <div className="dropzone cursor-pointer relative">
                 <input 
@@ -399,7 +450,7 @@ export function ImportWizard() {
               <CardHeader className="p-0">
                 <CardTitle>Vérification de la période</CardTitle>
                 <CardDescription>
-                  Période sélectionnée : <strong>{mois.padStart(2, '0')}/{annee}</strong> ou format <strong>{annee}{mois.padStart(2, '0')}</strong>
+                  Période sélectionnée : <strong>{mois.padStart(2, '0')}/{annee}</strong>
                 </CardDescription>
               </CardHeader>
               {periodValid === null && (
@@ -413,7 +464,7 @@ export function ImportWizard() {
                   <CheckCircle2 className="h-4 w-4 text-success" />
                   <AlertTitle>Période cohérente</AlertTitle>
                   <AlertDescription>
-                    Toutes les {parsedData.length} lignes correspondent à la période sélectionnée.
+                    Toutes les {parsedData.length} lignes correspondent à la période {mois.padStart(2, '0')}/{annee}
                   </AlertDescription>
                 </Alert>
               )}
@@ -422,9 +473,9 @@ export function ImportWizard() {
                   <Alert variant="destructive">
                     <XCircle className="h-4 w-4" />
                     <AlertTitle>Incohérence de période</AlertTitle>
-                    <AlertDescription>{periodErrors.length} ligne(s) avec une période différente du format attendu.</AlertDescription>
+                    <AlertDescription>{periodErrors.length} ligne(s) avec une période différente</AlertDescription>
                   </Alert>
-                  <div className="max-h-40 overflow-auto space-y-1 p-2 border rounded bg-muted/20">
+                  <div className="max-h-40 overflow-auto space-y-1">
                     {periodErrors.map((e, i) => (
                       <p key={i} className="text-sm text-destructive">{e}</p>
                     ))}
@@ -439,7 +490,7 @@ export function ImportWizard() {
             <div className="space-y-4">
               <CardHeader className="p-0">
                 <CardTitle>Vérification des données</CardTitle>
-                <CardDescription>Analyse des doublons, matricules et corrections automatiques via la table de référence</CardDescription>
+                <CardDescription>Doublons, matricules, corrections automatiques</CardDescription>
               </CardHeader>
               {validationResults.length === 0 ? (
                 <Button onClick={validateData}>
@@ -522,40 +573,34 @@ export function ImportWizard() {
               <CardHeader className="p-0">
                 <CardTitle>Confirmation d'import</CardTitle>
                 <CardDescription>
-                  {validCount} lignes prêtes à être importées pour la période {mois.padStart(2, '0')}/{annee}
+                  {validCount} lignes prêtes à être importées pour {mois.padStart(2, '0')}/{annee}
                 </CardDescription>
               </CardHeader>
 
-              <div className="grid grid-cols-2 gap-4 max-w-md p-4 bg-muted/30 rounded-lg">
-                <div className="text-sm font-medium">Fichier :</div>
-                <div className="text-sm">{file?.name}</div>
-                <div className="text-sm font-medium">Période cible :</div>
-                <div className="text-sm">{mois.padStart(2, '0')}/{annee}</div>
-                <div className="text-sm font-medium">Lignes valides :</div>
-                <div className="text-sm text-success font-bold">{validCount}</div>
-                <div className="text-sm font-medium">Montant total :</div>
-                <div className="text-sm font-mono">{validationResults.reduce((s, r) => s + (r.errors.length === 0 ? r.row.montant : 0), 0).toLocaleString('fr-FR')} FCFA</div>
+              <div className="grid grid-cols-2 gap-4 max-w-md">
+                <div className="text-sm"><span className="text-muted-foreground">Fichier:</span> {file?.name}</div>
+                <div className="text-sm"><span className="text-muted-foreground">Période:</span> {mois.padStart(2, '0')}/{annee}</div>
+                <div className="text-sm"><span className="text-muted-foreground">Lignes valides:</span> {validCount}</div>
+                <div className="text-sm"><span className="text-muted-foreground">Montant total:</span> {validationResults.reduce((s, r) => s + (r.errors.length === 0 ? r.row.montant : 0), 0).toLocaleString('fr-FR')} FCFA</div>
               </div>
 
               {isImporting && (
                 <div className="space-y-2">
                   <Progress value={importProgress} />
-                  <p className="text-sm text-muted-foreground text-center">Progression : {importProgress}%</p>
+                  <p className="text-sm text-muted-foreground text-center">{importProgress}%</p>
                 </div>
               )}
 
               {importComplete ? (
-                <Alert className="bg-success/10 border-success/30">
+                <Alert>
                   <CheckCircle2 className="h-4 w-4 text-success" />
-                  <AlertTitle className="text-success">Import réussi</AlertTitle>
-                  <AlertDescription>
-                    {validCount} lignes ont été importées avec succès dans la base de données.
-                  </AlertDescription>
+                  <AlertTitle>Import réussi</AlertTitle>
+                  <AlertDescription>{validCount} lignes importées avec succès</AlertDescription>
                 </Alert>
               ) : (
-                <Button onClick={doImport} disabled={isImporting || validCount === 0} size="lg" className="w-full sm:w-auto">
+                <Button onClick={doImport} disabled={isImporting} size="lg">
                   {isImporting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <FileSpreadsheet className="h-4 w-4 mr-2" />}
-                  Lancer l'importation finale
+                  Lancer l'import
                 </Button>
               )}
             </div>
@@ -563,12 +608,12 @@ export function ImportWizard() {
         </CardContent>
       </Card>
 
-      {/* Navigation Controls */}
-      <div className="flex justify-between pt-4">
+      {/* Navigation */}
+      <div className="flex justify-between">
         <Button 
           variant="outline" 
           onClick={() => { setStep(s => s - 1); setPeriodValid(null); }}
-          disabled={step === 1 || isImporting || importComplete}
+          disabled={step === 1}
         >
           <ChevronLeft className="h-4 w-4 mr-1" /> Précédent
         </Button>
@@ -578,10 +623,9 @@ export function ImportWizard() {
             if (step === 4 && validationResults.length === 0) { validateData(); return; }
             setStep(s => s + 1);
           }}
-          disabled={step === 5 || !canAdvance() || importComplete}
+          disabled={step === 5 || !canAdvance()}
         >
-          {step === 3 && periodValid === null ? 'Vérifier' : step === 4 && validationResults.length === 0 ? 'Valider les données' : 'Suivant'}
-          <ChevronRight className="h-4 w-4 ml-1" />
+          Suivant <ChevronRight className="h-4 w-4 ml-1" />
         </Button>
       </div>
     </div>
