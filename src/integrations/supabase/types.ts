@@ -1626,8 +1626,12 @@ export type Database = {
       }
       splitting_rules: {
         Row: {
+          beneficiaire_nom: string | null
+          beneficiaire_rib: string | null
           created_at: string
           created_by: string | null
+          date_debut: string | null
+          date_fin: string | null
           employeur_code: string | null
           id: string
           id_societaire: string | null
@@ -1635,17 +1639,27 @@ export type Database = {
           is_active: boolean | null
           matricule: string | null
           montant_minimum_split: number | null
+          montant_saisie: number | null
+          motif_saisie: string | null
           percentage_courant: number
           percentage_epargne: number
+          plafond_total: number | null
           priority: number | null
+          reference_juridique: string | null
           rib_courant_cible: string | null
           rib_epargne_cible: string | null
           rule_name: string
+          rule_type: string
+          total_deja_preleve: number | null
           updated_at: string
         }
         Insert: {
+          beneficiaire_nom?: string | null
+          beneficiaire_rib?: string | null
           created_at?: string
           created_by?: string | null
+          date_debut?: string | null
+          date_fin?: string | null
           employeur_code?: string | null
           id?: string
           id_societaire?: string | null
@@ -1653,17 +1667,27 @@ export type Database = {
           is_active?: boolean | null
           matricule?: string | null
           montant_minimum_split?: number | null
+          montant_saisie?: number | null
+          motif_saisie?: string | null
           percentage_courant?: number
           percentage_epargne?: number
+          plafond_total?: number | null
           priority?: number | null
+          reference_juridique?: string | null
           rib_courant_cible?: string | null
           rib_epargne_cible?: string | null
           rule_name: string
+          rule_type?: string
+          total_deja_preleve?: number | null
           updated_at?: string
         }
         Update: {
+          beneficiaire_nom?: string | null
+          beneficiaire_rib?: string | null
           created_at?: string
           created_by?: string | null
+          date_debut?: string | null
+          date_fin?: string | null
           employeur_code?: string | null
           id?: string
           id_societaire?: string | null
@@ -1671,12 +1695,18 @@ export type Database = {
           is_active?: boolean | null
           matricule?: string | null
           montant_minimum_split?: number | null
+          montant_saisie?: number | null
+          motif_saisie?: string | null
           percentage_courant?: number
           percentage_epargne?: number
+          plafond_total?: number | null
           priority?: number | null
+          reference_juridique?: string | null
           rib_courant_cible?: string | null
           rib_epargne_cible?: string | null
           rule_name?: string
+          rule_type?: string
+          total_deja_preleve?: number | null
           updated_at?: string
         }
         Relationships: []
