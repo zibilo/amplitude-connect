@@ -4,6 +4,7 @@ import { DashboardOverview } from '@/components/DashboardOverview';
 import { FileImportZone } from '@/components/FileImportZone';
 import { PayrollDataTable } from '@/components/PayrollDataTable';
 import { FileGenerator } from '@/components/FileGenerator';
+import { GenerationModule } from '@/components/GenerationModule';
 import { ReconciliationModule } from '@/components/ReconciliationModule';
 import { AuditDashboard } from '@/components/AuditDashboard';
 import { CompanyProfilesManager } from '@/components/CompanyProfilesManager';
