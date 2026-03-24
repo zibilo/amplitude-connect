@@ -190,7 +190,7 @@ export function ReferenceTableManager() {
               <Upload className="h-4 w-4 mr-2" /> Importer Excel
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-2xl max-h-[80vh] overflow-auto">
+          <DialogContent className="max-w-2xl max-h-[80vh] overflow-auto" onPointerDownOutside={(e) => { if (importPreview.length > 0 || importFile) e.preventDefault(); }} onInteractOutside={(e) => { if (importPreview.length > 0 || importFile) e.preventDefault(); }}>
             <DialogHeader>
               <DialogTitle>Importer un fichier de référence</DialogTitle>
             </DialogHeader>
@@ -198,12 +198,13 @@ export function ReferenceTableManager() {
               <p className="text-sm text-muted-foreground">
                 Colonnes attendues : <span className="font-mono text-xs">MATRICULE_ERRONE, CCO_ERRONE, MATRICULE_CORRECT, CCO_CORRECT, COMMENTAIRE</span>
               </p>
-              <div className="dropzone cursor-pointer relative">
+              <div className="border-2 border-dashed border-border rounded-lg p-6 text-center cursor-pointer relative hover:border-primary/50 transition-colors">
                 <input 
                   type="file" 
                   accept=".xlsx,.xls,.csv" 
-                  onChange={handleImportFile}
+                  onChange={(e) => { e.stopPropagation(); handleImportFile(e); }}
                   className="absolute inset-0 opacity-0 cursor-pointer"
+                  onClick={(e) => e.stopPropagation()}
                 />
                 <FileSpreadsheet className="h-10 w-10 mx-auto text-muted-foreground mb-2" />
                 <p className="text-sm text-muted-foreground">
