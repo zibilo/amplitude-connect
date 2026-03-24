@@ -647,7 +647,11 @@ export function ImportWizard() {
                 <Alert>
                   <CheckCircle2 className="h-4 w-4 text-success" />
                   <AlertTitle>Import réussi</AlertTitle>
-                  <AlertDescription>{validCount} lignes importées avec succès</AlertDescription>
+                  <AlertDescription>
+                    {validCount} lignes importées avec succès.
+                    Rendez-vous dans le module <strong>Génération</strong> pour lancer le Triple Check 
+                    (CLM, Saisies Arrêts, Ventilation) et générer le fichier XML ISO 20022 pour Amplitude.
+                  </AlertDescription>
                 </Alert>
               ) : (
                 <Button onClick={doImport} disabled={isImporting} size="lg">

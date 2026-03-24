@@ -4,6 +4,7 @@ import { DashboardOverview } from '@/components/DashboardOverview';
 import { FileImportZone } from '@/components/FileImportZone';
 import { PayrollDataTable } from '@/components/PayrollDataTable';
 import { FileGenerator } from '@/components/FileGenerator';
+import { GenerationModule } from '@/components/GenerationModule';
 import { ReconciliationModule } from '@/components/ReconciliationModule';
 import { AuditDashboard } from '@/components/AuditDashboard';
 import { CompanyProfilesManager } from '@/components/CompanyProfilesManager';
@@ -61,20 +62,7 @@ const Index = () => {
         );
       
       case 'generate':
-        return (
-          <div className="space-y-6">
-            <div>
-              <h1 className="text-3xl font-bold text-foreground">Génération de Fichiers</h1>
-              <p className="text-muted-foreground mt-1">
-                Générez les fichiers de virement pour Sopra Banking Amplitude
-              </p>
-            </div>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <FileGenerator data={importData} />
-              <PayrollDataTable data={importData} />
-            </div>
-          </div>
-        );
+        return <GenerationModule />;
       
       case 'reconciliation':
         return (
