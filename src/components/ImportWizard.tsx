@@ -13,7 +13,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { 
   Calendar, Upload, CheckCircle2, AlertTriangle, XCircle, 
-  ChevronRight, ChevronLeft, FileSpreadsheet, Loader2, Shield, Building2
+  ChevronRight, ChevronLeft, FileSpreadsheet, Loader2, Shield, Building2, Search
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { cn } from '@/lib/utils';
@@ -93,7 +93,12 @@ export function ImportWizard() {
     fetchCompanies();
   }, []);
 
+  const [companySearch, setCompanySearch] = useState('');
   const selectedCompanyName = companies.find(c => c.id === selectedCompany)?.nom_entreprise || '';
+  const filteredCompanies = companies.filter(c =>
+    c.nom_entreprise.toLowerCase().includes(companySearch.toLowerCase()) ||
+    c.code_client.toLowerCase().includes(companySearch.toLowerCase())
+  );
 
   const checkDuplicateMonth = useCallback(async () => {
     if (!mois || !annee || !selectedCompany) return;
@@ -389,18 +394,35 @@ export function ImportWizard() {
               </CardHeader>
               <div className="space-y-2">
                 <Label>Entreprise</Label>
-                <Select value={selectedCompany} onValueChange={setSelectedCompany}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Sélectionner une entreprise..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {companies.map(c => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.nom_entreprise} ({c.code_client})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Rechercher une entreprise..."
+                    value={companySearch}
+                    onChange={e => setCompanySearch(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
+                <div className="border rounded-md max-h-60 overflow-y-auto">
+                  {filteredCompanies.length === 0 ? (
+                    <p className="p-3 text-sm text-muted-foreground text-center">Aucun résultat</p>
+                  ) : (
+                    filteredCompanies.map(c => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => setSelectedCompany(c.id)}
+                        className={cn(
+                          "w-full text-left px-3 py-2.5 text-sm flex items-center justify-between hover:bg-muted/50 transition-colors border-b last:border-b-0",
+                          selectedCompany === c.id && "bg-primary/10 text-primary font-medium"
+                        )}
+                      >
+                        <span>{c.nom_entreprise}</span>
+                        <Badge variant="outline" className="text-xs font-mono">{c.code_client}</Badge>
+                      </button>
+                    ))
+                  )}
+                </div>
               </div>
               {companies.length === 0 && (
                 <Alert>
