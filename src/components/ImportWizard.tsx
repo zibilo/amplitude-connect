@@ -93,7 +93,12 @@ export function ImportWizard() {
     fetchCompanies();
   }, []);
 
+  const [companySearch, setCompanySearch] = useState('');
   const selectedCompanyName = companies.find(c => c.id === selectedCompany)?.nom_entreprise || '';
+  const filteredCompanies = companies.filter(c =>
+    c.nom_entreprise.toLowerCase().includes(companySearch.toLowerCase()) ||
+    c.code_client.toLowerCase().includes(companySearch.toLowerCase())
+  );
 
   const checkDuplicateMonth = useCallback(async () => {
     if (!mois || !annee || !selectedCompany) return;
