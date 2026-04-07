@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,7 +13,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { 
   Calendar, Upload, CheckCircle2, AlertTriangle, XCircle, 
-  ChevronRight, ChevronLeft, FileSpreadsheet, Loader2, Shield
+  ChevronRight, ChevronLeft, FileSpreadsheet, Loader2, Shield, Building2
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { cn } from '@/lib/utils';
@@ -38,6 +38,12 @@ interface ValidationResult {
   isDuplicate: boolean;
 }
 
+interface CompanyProfile {
+  id: string;
+  nom_entreprise: string;
+  code_client: string;
+}
+
 const MONTHS = [
   { value: '1', label: 'Janvier' }, { value: '2', label: 'Février' },
   { value: '3', label: 'Mars' }, { value: '4', label: 'Avril' },
@@ -48,16 +54,19 @@ const MONTHS = [
 ];
 
 const STEPS = [
-  { id: 1, label: 'Période', icon: Calendar },
-  { id: 2, label: 'Fichier', icon: Upload },
-  { id: 3, label: 'Vérif. Période', icon: Shield },
-  { id: 4, label: 'Vérif. Données', icon: CheckCircle2 },
-  { id: 5, label: 'Import', icon: FileSpreadsheet },
+  { id: 1, label: 'Entreprise', icon: Building2 },
+  { id: 2, label: 'Période', icon: Calendar },
+  { id: 3, label: 'Fichier', icon: Upload },
+  { id: 4, label: 'Vérif. Période', icon: Shield },
+  { id: 5, label: 'Vérif. Données', icon: CheckCircle2 },
+  { id: 6, label: 'Import', icon: FileSpreadsheet },
 ];
 
 export function ImportWizard() {
   const { toast } = useToast();
   const [step, setStep] = useState(1);
+  const [companies, setCompanies] = useState<CompanyProfile[]>([]);
+  const [selectedCompany, setSelectedCompany] = useState<string>('');
   const [mois, setMois] = useState('');
   const [annee, setAnnee] = useState(new Date().getFullYear().toString());
   const [isQuinzaine, setIsQuinzaine] = useState(false);
@@ -72,22 +81,35 @@ export function ImportWizard() {
   const [importProgress, setImportProgress] = useState(0);
   const [importComplete, setImportComplete] = useState(false);
 
-  // Check if an import already exists for this month/year
+  useEffect(() => {
+    const fetchCompanies = async () => {
+      const { data } = await supabase
+        .from('company_profiles')
+        .select('id, nom_entreprise, code_client')
+        .eq('is_active', true)
+        .order('nom_entreprise');
+      if (data) setCompanies(data);
+    };
+    fetchCompanies();
+  }, []);
+
+  const selectedCompanyName = companies.find(c => c.id === selectedCompany)?.nom_entreprise || '';
+
   const checkDuplicateMonth = useCallback(async () => {
-    if (!mois || !annee) return;
+    if (!mois || !annee || !selectedCompany) return;
     const { data } = await supabase
       .from('import_sessions')
       .select('id')
       .eq('mois', parseInt(mois))
       .eq('annee', parseInt(annee))
+      .eq('entreprise', selectedCompanyName)
       .eq('status', 'completed');
 
     const exists = (data && data.length > 0);
     setDuplicateExists(!!exists);
     setDuplicateCheckDone(true);
-  }, [mois, annee]);
+  }, [mois, annee, selectedCompany, selectedCompanyName]);
 
-  // Step 1 → 2: Select file
   const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (!f) return;
@@ -116,7 +138,6 @@ export function ImportWizard() {
     }
   }, [toast]);
 
-  // Normalize any period format to { month, year } or null
   const normalizePeriod = useCallback((raw: string): { month: string; year: string } | null => {
     if (!raw) return null;
     const s = raw.trim();
@@ -158,7 +179,6 @@ export function ImportWizard() {
     return null;
   }, []);
 
-  // Step 3: Verify period
   const verifyPeriod = useCallback(() => {
     const selectedMonth = mois.padStart(2, '0');
     const selectedYear = annee;
@@ -178,7 +198,6 @@ export function ImportWizard() {
     setPeriodErrors(errors);
   }, [mois, annee, parsedData, normalizePeriod]);
 
-  // Step 4: Validate data
   const validateData = useCallback(async () => {
     const { data: corrections } = await supabase.from('reference_corrections').select('*');
     const correctionMap = new Map<string, { matricule_correct: string; cco_correct: string | null }>();
@@ -239,7 +258,6 @@ export function ImportWizard() {
     setValidationResults(results);
   }, [parsedData]);
 
-  // Step 5: Import to database
   const doImport = useCallback(async () => {
     setIsImporting(true);
     setImportProgress(0);
@@ -251,7 +269,7 @@ export function ImportWizard() {
           mois: parseInt(mois),
           annee: parseInt(annee),
           file_name: file?.name || 'unknown',
-          entreprise: isQuinzaine ? 'QUINZAINE' : null,
+          entreprise: isQuinzaine ? `${selectedCompanyName}_QUINZAINE` : selectedCompanyName,
           total_lignes: validationResults.length,
           lignes_valides: validationResults.filter(r => r.errors.length === 0).length,
           lignes_rejetees: validationResults.filter(r => r.errors.length > 0).length,
@@ -293,7 +311,7 @@ export function ImportWizard() {
 
       setImportProgress(100);
       setImportComplete(true);
-      toast({ title: 'Import terminé', description: `${validEntries.length} lignes importées avec succès` });
+      toast({ title: 'Import terminé', description: `${validEntries.length} lignes importées pour ${selectedCompanyName}` });
     } catch (err: unknown) {
       toast({ 
         title: 'Erreur d\'import', 
@@ -303,7 +321,7 @@ export function ImportWizard() {
     } finally {
       setIsImporting(false);
     }
-  }, [mois, annee, file, isQuinzaine, validationResults, toast]);
+  }, [mois, annee, file, isQuinzaine, selectedCompanyName, validationResults, toast]);
 
   const validCount = validationResults.filter(r => r.errors.length === 0).length;
   const errorCount = validationResults.filter(r => r.errors.length > 0).length;
@@ -311,16 +329,17 @@ export function ImportWizard() {
 
   const canAdvance = () => {
     switch (step) {
-      case 1: {
+      case 1: return !!selectedCompany;
+      case 2: {
         if (!mois || !annee) return false;
         if (!duplicateCheckDone) return false;
         if (duplicateExists && !isQuinzaine) return false;
         return true;
       }
-      case 2: return parsedData.length > 0;
-      case 3: return periodValid === true;
-      case 4: return validationResults.length > 0 && errorCount === 0;
-      case 5: return true;
+      case 3: return parsedData.length > 0;
+      case 4: return periodValid === true;
+      case 5: return validationResults.length > 0 && errorCount === 0;
+      case 6: return true;
       default: return false;
     }
   };
@@ -329,11 +348,11 @@ export function ImportWizard() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold text-foreground">Import de Fichier</h1>
-        <p className="text-muted-foreground mt-1">Assistant d'importation en 5 étapes</p>
+        <p className="text-muted-foreground mt-1">Assistant d'importation en 6 étapes</p>
       </div>
 
       {/* Stepper */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-wrap">
         {STEPS.map((s, i) => {
           const Icon = s.icon;
           const isActive = step === s.id;
@@ -358,12 +377,56 @@ export function ImportWizard() {
       {/* Step Content */}
       <Card>
         <CardContent className="pt-6">
-          {/* STEP 1: Select Month/Year */}
+          {/* STEP 1: Select Company */}
           {step === 1 && (
             <div className="space-y-4 max-w-md">
               <CardHeader className="p-0">
+                <CardTitle className="flex items-center gap-2">
+                  <Building2 className="h-5 w-5 text-primary" />
+                  Sélection de l'entreprise
+                </CardTitle>
+                <CardDescription>Choisissez l'entreprise pour laquelle vous importez les données de paie</CardDescription>
+              </CardHeader>
+              <div className="space-y-2">
+                <Label>Entreprise</Label>
+                <Select value={selectedCompany} onValueChange={setSelectedCompany}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sélectionner une entreprise..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {companies.map(c => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.nom_entreprise} ({c.code_client})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {companies.length === 0 && (
+                <Alert>
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertTitle>Aucune entreprise</AlertTitle>
+                  <AlertDescription>Veuillez d'abord créer une entreprise dans l'onglet Entreprises.</AlertDescription>
+                </Alert>
+              )}
+              {selectedCompany && (
+                <Alert>
+                  <CheckCircle2 className="h-4 w-4 text-success" />
+                  <AlertTitle>{selectedCompanyName}</AlertTitle>
+                  <AlertDescription>Entreprise sélectionnée. Passez à l'étape suivante.</AlertDescription>
+                </Alert>
+              )}
+            </div>
+          )}
+
+          {/* STEP 2: Select Month/Year */}
+          {step === 2 && (
+            <div className="space-y-4 max-w-md">
+              <CardHeader className="p-0">
                 <CardTitle>Sélection de la période</CardTitle>
-                <CardDescription>Choisissez le mois et l'année du fichier de paie</CardDescription>
+                <CardDescription>
+                  Entreprise : <strong>{selectedCompanyName}</strong> — Choisissez le mois et l'année
+                </CardDescription>
               </CardHeader>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -399,7 +462,7 @@ export function ImportWizard() {
                 <Alert>
                   <CheckCircle2 className="h-4 w-4 text-success" />
                   <AlertTitle>Période disponible</AlertTitle>
-                  <AlertDescription>Aucun import existant pour {mois.padStart(2, '0')}/{annee}</AlertDescription>
+                  <AlertDescription>Aucun import existant pour {selectedCompanyName} — {mois.padStart(2, '0')}/{annee}</AlertDescription>
                 </Alert>
               )}
 
@@ -409,8 +472,8 @@ export function ImportWizard() {
                     <AlertTriangle className="h-4 w-4" />
                     <AlertTitle>Import déjà effectué</AlertTitle>
                     <AlertDescription>
-                      Un fichier a déjà été importé pour {mois.padStart(2, '0')}/{annee}. 
-                      Si vous souhaitez importer un second fichier pour ce mois, cochez la case ci-dessous pour indiquer qu'il s'agit d'une quinzaine.
+                      Un fichier a déjà été importé pour {selectedCompanyName} — {mois.padStart(2, '0')}/{annee}. 
+                      Si vous souhaitez importer un second fichier pour ce mois, cochez la case ci-dessous.
                     </AlertDescription>
                   </Alert>
                   <div className="flex items-center space-x-2">
@@ -428,12 +491,16 @@ export function ImportWizard() {
             </div>
           )}
 
-          {/* STEP 2: Choose File */}
-          {step === 2 && (
+          {/* STEP 3: Choose File */}
+          {step === 3 && (
             <div className="space-y-4">
               <CardHeader className="p-0">
                 <CardTitle>Choisir le fichier</CardTitle>
-                <CardDescription>Format: PERIODE, MATRICULE, NOM, PRENOM, CODE CAISSE, CCO, MONTANT</CardDescription>
+                <CardDescription>
+                  {selectedCompanyName} — {mois.padStart(2, '0')}/{annee}
+                  {isQuinzaine && ' (Quinzaine)'}
+                  <br />Format: PERIODE, MATRICULE, NOM, PRENOM, CODE CAISSE, CCO, MONTANT
+                </CardDescription>
               </CardHeader>
               {isQuinzaine && (
                 <Badge variant="secondary" className="bg-warning/10 text-warning border-warning/30">
@@ -491,13 +558,13 @@ export function ImportWizard() {
             </div>
           )}
 
-          {/* STEP 3: Verify Period */}
-          {step === 3 && (
+          {/* STEP 4: Verify Period */}
+          {step === 4 && (
             <div className="space-y-4">
               <CardHeader className="p-0">
                 <CardTitle>Vérification de la période</CardTitle>
                 <CardDescription>
-                  Période sélectionnée : <strong>{mois.padStart(2, '0')}/{annee}</strong>
+                  {selectedCompanyName} — Période sélectionnée : <strong>{mois.padStart(2, '0')}/{annee}</strong>
                   {isQuinzaine && <Badge variant="secondary" className="ml-2">Quinzaine</Badge>}
                 </CardDescription>
               </CardHeader>
@@ -533,8 +600,8 @@ export function ImportWizard() {
             </div>
           )}
 
-          {/* STEP 4: Validate Data */}
-          {step === 4 && (
+          {/* STEP 5: Validate Data */}
+          {step === 5 && (
             <div className="space-y-4">
               <CardHeader className="p-0">
                 <CardTitle>Vérification des données</CardTitle>
@@ -615,22 +682,23 @@ export function ImportWizard() {
             </div>
           )}
 
-          {/* STEP 5: Import */}
-          {step === 5 && (
+          {/* STEP 6: Import */}
+          {step === 6 && (
             <div className="space-y-4">
               <CardHeader className="p-0">
                 <CardTitle>Confirmation d'import</CardTitle>
                 <CardDescription>
-                  {validCount} lignes prêtes à être importées pour {mois.padStart(2, '0')}/{annee}
+                  {validCount} lignes prêtes pour <strong>{selectedCompanyName}</strong> — {mois.padStart(2, '0')}/{annee}
                   {isQuinzaine && ' (Quinzaine)'}
                 </CardDescription>
               </CardHeader>
 
               <div className="grid grid-cols-2 gap-4 max-w-md">
+                <div className="text-sm"><span className="text-muted-foreground">Entreprise:</span> {selectedCompanyName}</div>
                 <div className="text-sm"><span className="text-muted-foreground">Fichier:</span> {file?.name}</div>
                 <div className="text-sm"><span className="text-muted-foreground">Période:</span> {mois.padStart(2, '0')}/{annee}</div>
                 <div className="text-sm"><span className="text-muted-foreground">Lignes valides:</span> {validCount}</div>
-                <div className="text-sm"><span className="text-muted-foreground">Montant total:</span> {validationResults.reduce((s, r) => s + (r.errors.length === 0 ? r.row.montant : 0), 0).toLocaleString('fr-FR')} FCFA</div>
+                <div className="text-sm col-span-2"><span className="text-muted-foreground">Montant total:</span> {validationResults.reduce((s, r) => s + (r.errors.length === 0 ? r.row.montant : 0), 0).toLocaleString('fr-FR')} FCFA</div>
                 {isQuinzaine && (
                   <div className="text-sm col-span-2"><Badge variant="secondary">🔄 Quinzaine</Badge></div>
                 )}
@@ -648,9 +716,9 @@ export function ImportWizard() {
                   <CheckCircle2 className="h-4 w-4 text-success" />
                   <AlertTitle>Import réussi</AlertTitle>
                   <AlertDescription>
-                    {validCount} lignes importées avec succès.
+                    {validCount} lignes importées pour <strong>{selectedCompanyName}</strong>.
                     Rendez-vous dans le module <strong>Génération</strong> pour lancer le Triple Check 
-                    (CLM, Saisies Arrêts, Ventilation) et générer le fichier XML ISO 20022 pour Amplitude.
+                    et générer le fichier XML ISO 20022 pour Amplitude.
                   </AlertDescription>
                 </Alert>
               ) : (
@@ -668,19 +736,19 @@ export function ImportWizard() {
       <div className="flex justify-between">
         <Button 
           variant="outline" 
-          onClick={() => { setStep(s => s - 1); setPeriodValid(null); }}
+          onClick={() => { setStep(s => s - 1); if (step === 5) setPeriodValid(null); }}
           disabled={step === 1}
         >
           <ChevronLeft className="h-4 w-4 mr-1" /> Précédent
         </Button>
         <Button 
           onClick={() => {
-            if (step === 1 && !duplicateCheckDone) { checkDuplicateMonth(); return; }
-            if (step === 3 && periodValid === null) { verifyPeriod(); return; }
-            if (step === 4 && validationResults.length === 0) { validateData(); return; }
+            if (step === 2 && !duplicateCheckDone) { checkDuplicateMonth(); return; }
+            if (step === 4 && periodValid === null) { verifyPeriod(); return; }
+            if (step === 5 && validationResults.length === 0) { validateData(); return; }
             setStep(s => s + 1);
           }}
-          disabled={step === 5 || !canAdvance()}
+          disabled={step === 6 || !canAdvance()}
         >
           Suivant <ChevronRight className="h-4 w-4 ml-1" />
         </Button>

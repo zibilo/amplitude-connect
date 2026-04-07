@@ -4,9 +4,10 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { FolderOpen, Eye, Loader2 } from 'lucide-react';
+import { FolderOpen, Eye, Loader2, ChevronRight, ChevronDown, Building2, Calendar } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 interface ImportSession {
@@ -40,6 +41,10 @@ interface CaisseInfo {
   nom_caisse: string;
 }
 
+type GroupedByCompany = Map<string, Map<string, ImportSession[]>>;
+
+const MONTH_NAMES = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+
 export function ImportHistory() {
   const { toast } = useToast();
   const [sessions, setSessions] = useState<ImportSession[]>([]);
@@ -48,6 +53,8 @@ export function ImportHistory() {
   const [caisses, setCaisses] = useState<CaisseInfo[]>([]);
   const [detailOpen, setDetailOpen] = useState(false);
   const [generating, setGenerating] = useState<string | null>(null);
+  const [openCompanies, setOpenCompanies] = useState<Set<string>>(new Set());
+  const [openMonths, setOpenMonths] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     fetchSessions();
@@ -64,9 +71,37 @@ export function ImportHistory() {
     if (data) setCaisses(data);
   };
 
+  const groupByCompanyAndMonth = (): GroupedByCompany => {
+    const grouped: GroupedByCompany = new Map();
+    sessions.forEach(s => {
+      const company = s.entreprise || 'Non classé';
+      const monthKey = `${String(s.mois).padStart(2, '0')}/${s.annee}`;
+      if (!grouped.has(company)) grouped.set(company, new Map());
+      const companyMap = grouped.get(company)!;
+      if (!companyMap.has(monthKey)) companyMap.set(monthKey, []);
+      companyMap.get(monthKey)!.push(s);
+    });
+    return grouped;
+  };
+
+  const toggleCompany = (company: string) => {
+    setOpenCompanies(prev => {
+      const next = new Set(prev);
+      if (next.has(company)) next.delete(company); else next.add(company);
+      return next;
+    });
+  };
+
+  const toggleMonth = (key: string) => {
+    setOpenMonths(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  };
+
   const viewDetails = async (session: ImportSession) => {
     setSelectedSession(session);
-    // Fetch ALL entries for this session (not just valid), increase limit
     const { data } = await supabase
       .from('import_entries')
       .select('*')
@@ -83,26 +118,16 @@ export function ImportHistory() {
 
   const generateFolderStructure = async (session: ImportSession) => {
     setGenerating(session.id);
-
     try {
-      // Fetch ALL entries for this session (remove status filter, increase limit)
       const { data: sessionEntries, error } = await supabase
         .from('import_entries')
         .select('*')
         .eq('session_id', session.id)
         .limit(10000);
 
-      if (error) {
-        toast({ title: 'Erreur', description: error.message, variant: 'destructive' });
-        return;
-      }
+      if (error) { toast({ title: 'Erreur', description: error.message, variant: 'destructive' }); return; }
+      if (!sessionEntries || sessionEntries.length === 0) { toast({ title: 'Aucune donnée', description: 'Pas d\'entrées trouvées.', variant: 'destructive' }); return; }
 
-      if (!sessionEntries || sessionEntries.length === 0) {
-        toast({ title: 'Aucune donnée', description: `Pas d'entrées trouvées pour la session ${session.file_name}. Vérifiez que l'import a bien été effectué.`, variant: 'destructive' });
-        return;
-      }
-
-      // Group by code_caisse
       const byCaisse = new Map<string, typeof sessionEntries>();
       sessionEntries.forEach(entry => {
         const key = entry.code_caisse;
@@ -111,7 +136,8 @@ export function ImportHistory() {
       });
 
       const moisStr = String(session.mois).padStart(2, '0');
-      const folderName = `SARIS_${moisStr}_${session.annee}`;
+      const companyName = (session.entreprise || 'INCONNU').replace(/[^a-zA-Z0-9_-]/g, '_');
+      const folderName = `${companyName}/${moisStr}_${session.annee}`;
 
       const allFiles: { name: string; entries: typeof sessionEntries }[] = [];
       byCaisse.forEach((caisseEntries, code) => {
@@ -146,118 +172,169 @@ export function ImportHistory() {
         URL.revokeObjectURL(url);
       }
 
-      toast({ 
-        title: 'Fichiers générés', 
-        description: `${allFiles.length} fichier(s) pour ${folderName}` 
-      });
-    } catch (err) {
+      toast({ title: 'Fichiers générés', description: `${allFiles.length} fichier(s) pour ${folderName}` });
+    } catch {
       toast({ title: 'Erreur', description: 'Impossible de générer les fichiers', variant: 'destructive' });
     } finally {
       setGenerating(null);
     }
   };
 
+  const grouped = groupByCompanyAndMonth();
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold text-foreground">Historique des Imports</h1>
-        <p className="text-muted-foreground mt-1">Liste de tous les imports effectués · Génération d'arborescence par caisse</p>
+        <p className="text-muted-foreground mt-1">Organisé par entreprise et période · Génération d'arborescence par caisse</p>
       </div>
 
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Date</TableHead>
-                <TableHead>Période</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Fichier</TableHead>
-                <TableHead className="text-right">Lignes</TableHead>
-                <TableHead className="text-right">Valides</TableHead>
-                <TableHead className="text-right">Rejetées</TableHead>
-                <TableHead className="text-right">Montant</TableHead>
-                <TableHead>Statut</TableHead>
-                <TableHead className="w-32">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {sessions.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={10} className="text-center text-muted-foreground py-8">Aucun import effectué</TableCell>
-                </TableRow>
-              ) : sessions.map(s => (
-                <TableRow key={s.id}>
-                  <TableCell className="text-sm">{new Date(s.created_at).toLocaleDateString('fr-FR')}</TableCell>
-                  <TableCell className="font-mono">{String(s.mois).padStart(2, '0')}/{s.annee}</TableCell>
-                  <TableCell>
-                    {s.entreprise === 'QUINZAINE' ? (
-                      <Badge variant="secondary" className="text-xs">Quinzaine</Badge>
-                    ) : (
-                      <Badge variant="outline" className="text-xs">Standard</Badge>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-sm max-w-[200px] truncate">{s.file_name}</TableCell>
-                  <TableCell className="text-right">{s.total_lignes}</TableCell>
-                  <TableCell className="text-right text-success">{s.lignes_valides}</TableCell>
-                  <TableCell className="text-right text-destructive">{s.lignes_rejetees}</TableCell>
-                  <TableCell className="text-right font-mono">{s.montant_total?.toLocaleString('fr-FR')}</TableCell>
-                  <TableCell>
-                    <Badge className={s.status === 'completed' ? 'status-valid' : 'status-pending'}>
-                      {s.status === 'completed' ? 'Terminé' : s.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex gap-1">
-                      <Button variant="ghost" size="icon" onClick={() => viewDetails(s)} title="Voir détails">
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                      <Button 
-                        variant="ghost" size="icon" 
-                        onClick={() => generateFolderStructure(s)}
-                        disabled={generating === s.id}
-                        title="Générer dossiers"
-                      >
-                        {generating === s.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <FolderOpen className="h-4 w-4" />}
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+      {sessions.length === 0 ? (
+        <Card>
+          <CardContent className="py-12 text-center text-muted-foreground">
+            Aucun import effectué
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-3">
+          {Array.from(grouped.entries()).map(([company, monthsMap]) => {
+            const isCompanyOpen = openCompanies.has(company);
+            const totalSessions = Array.from(monthsMap.values()).reduce((s, arr) => s + arr.length, 0);
+            const totalAmount = Array.from(monthsMap.values()).flat().reduce((s, sess) => s + (sess.montant_total || 0), 0);
+
+            return (
+              <Card key={company}>
+                <Collapsible open={isCompanyOpen} onOpenChange={() => toggleCompany(company)}>
+                  <CollapsibleTrigger asChild>
+                    <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors py-4">
+                      <CardTitle className="flex items-center justify-between text-base">
+                        <div className="flex items-center gap-2">
+                          {isCompanyOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                          <Building2 className="h-4 w-4 text-primary" />
+                          <span>{company}</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <Badge variant="secondary">{totalSessions} import(s)</Badge>
+                          <Badge variant="outline" className="font-mono">{totalAmount.toLocaleString('fr-FR')} FCFA</Badge>
+                        </div>
+                      </CardTitle>
+                    </CardHeader>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <CardContent className="pt-0 space-y-2">
+                      {Array.from(monthsMap.entries())
+                        .sort(([a], [b]) => b.localeCompare(a))
+                        .map(([monthKey, monthSessions]) => {
+                          const fullKey = `${company}|${monthKey}`;
+                          const isMonthOpen = openMonths.has(fullKey);
+                          const [mm, yyyy] = monthKey.split('/');
+                          const monthName = MONTH_NAMES[parseInt(mm) - 1] || mm;
+                          const monthTotal = monthSessions.reduce((s, sess) => s + (sess.montant_total || 0), 0);
+
+                          return (
+                            <Collapsible key={fullKey} open={isMonthOpen} onOpenChange={() => toggleMonth(fullKey)}>
+                              <CollapsibleTrigger asChild>
+                                <div className="flex items-center justify-between p-3 rounded-lg border cursor-pointer hover:bg-muted/30 transition-colors">
+                                  <div className="flex items-center gap-2">
+                                    {isMonthOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                                    <Calendar className="h-4 w-4 text-muted-foreground" />
+                                    <span className="font-medium text-sm">{monthName} {yyyy}</span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <Badge variant="secondary" className="text-xs">{monthSessions.length} fichier(s)</Badge>
+                                    <span className="text-xs font-mono text-muted-foreground">{monthTotal.toLocaleString('fr-FR')}</span>
+                                  </div>
+                                </div>
+                              </CollapsibleTrigger>
+                              <CollapsibleContent>
+                                <div className="ml-6 mt-1 rounded-lg border overflow-hidden">
+                                  <Table>
+                                    <TableHeader>
+                                      <TableRow>
+                                        <TableHead>Date</TableHead>
+                                        <TableHead>Fichier</TableHead>
+                                        <TableHead className="text-right">Lignes</TableHead>
+                                        <TableHead className="text-right">Valides</TableHead>
+                                        <TableHead className="text-right">Rejetées</TableHead>
+                                        <TableHead className="text-right">Montant</TableHead>
+                                        <TableHead>Statut</TableHead>
+                                        <TableHead className="w-24">Actions</TableHead>
+                                      </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                      {monthSessions.map(s => (
+                                        <TableRow key={s.id}>
+                                          <TableCell className="text-sm">{new Date(s.created_at).toLocaleDateString('fr-FR')}</TableCell>
+                                          <TableCell className="text-sm max-w-[200px] truncate">{s.file_name}</TableCell>
+                                          <TableCell className="text-right">{s.total_lignes}</TableCell>
+                                          <TableCell className="text-right text-success">{s.lignes_valides}</TableCell>
+                                          <TableCell className="text-right text-destructive">{s.lignes_rejetees}</TableCell>
+                                          <TableCell className="text-right font-mono">{s.montant_total?.toLocaleString('fr-FR')}</TableCell>
+                                          <TableCell>
+                                            <Badge className={s.status === 'completed' ? 'status-valid' : 'status-pending'}>
+                                              {s.status === 'completed' ? 'Terminé' : s.status}
+                                            </Badge>
+                                          </TableCell>
+                                          <TableCell>
+                                            <div className="flex gap-1">
+                                              <Button variant="ghost" size="icon" onClick={() => viewDetails(s)} title="Voir détails">
+                                                <Eye className="h-4 w-4" />
+                                              </Button>
+                                              <Button 
+                                                variant="ghost" size="icon" 
+                                                onClick={() => generateFolderStructure(s)}
+                                                disabled={generating === s.id}
+                                                title="Générer dossiers"
+                                              >
+                                                {generating === s.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <FolderOpen className="h-4 w-4" />}
+                                              </Button>
+                                            </div>
+                                          </TableCell>
+                                        </TableRow>
+                                      ))}
+                                    </TableBody>
+                                  </Table>
+                                </div>
+                              </CollapsibleContent>
+                            </Collapsible>
+                          );
+                        })}
+                    </CardContent>
+                  </CollapsibleContent>
+                </Collapsible>
+              </Card>
+            );
+          })}
+        </div>
+      )}
 
       {/* Detail Dialog */}
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
         <DialogContent className="max-w-4xl max-h-[80vh] overflow-auto">
           <DialogHeader>
             <DialogTitle>
-              Import du {selectedSession && new Date(selectedSession.created_at).toLocaleDateString('fr-FR')} — {selectedSession && `${String(selectedSession.mois).padStart(2, '0')}/${selectedSession.annee}`}
-              {selectedSession?.entreprise === 'QUINZAINE' && <Badge variant="secondary" className="ml-2">Quinzaine</Badge>}
+              {selectedSession?.entreprise && <span className="text-primary">{selectedSession.entreprise}</span>}
+              {' — '}Import du {selectedSession && new Date(selectedSession.created_at).toLocaleDateString('fr-FR')} — {selectedSession && `${String(selectedSession.mois).padStart(2, '0')}/${selectedSession.annee}`}
             </DialogTitle>
           </DialogHeader>
 
           {selectedSession && (() => {
-            const grouped = new Map<string, ImportEntry[]>();
+            const groupedEntries = new Map<string, ImportEntry[]>();
             entries.forEach(e => {
-              if (!grouped.has(e.code_caisse)) grouped.set(e.code_caisse, []);
-              grouped.get(e.code_caisse)!.push(e);
+              if (!groupedEntries.has(e.code_caisse)) groupedEntries.set(e.code_caisse, []);
+              groupedEntries.get(e.code_caisse)!.push(e);
             });
 
             return (
               <div className="space-y-4">
                 <div className="text-sm text-muted-foreground">
-                  Structure: <span className="font-mono font-bold">SARIS_{String(selectedSession.mois).padStart(2, '0')}_{selectedSession.annee}/</span>
-                  {' · '}{entries.length} entrées trouvées
+                  Structure: <span className="font-mono font-bold">{selectedSession.entreprise || 'INCONNU'}/{String(selectedSession.mois).padStart(2, '0')}_{selectedSession.annee}/</span>
+                  {' · '}{entries.length} entrées
                 </div>
                 {entries.length === 0 && (
-                  <div className="text-center py-8 text-muted-foreground">
-                    Aucune entrée trouvée pour cette session
-                  </div>
+                  <div className="text-center py-8 text-muted-foreground">Aucune entrée trouvée</div>
                 )}
-                {Array.from(grouped.entries()).map(([code, caisseEntries]) => (
+                {Array.from(groupedEntries.entries()).map(([code, caisseEntries]) => (
                   <Card key={code}>
                     <CardHeader className="py-3">
                       <CardTitle className="text-sm flex items-center gap-2">
