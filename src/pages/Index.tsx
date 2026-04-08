@@ -17,6 +17,7 @@ import { ImportWizard } from '@/components/ImportWizard';
 import { ReferenceTableManager } from '@/components/ReferenceTableManager';
 import { CaissesManager } from '@/components/CaissesManager';
 import { ImportHistory } from '@/components/ImportHistory';
+import { ReferentielSocietaireManager } from '@/components/ReferentielSocietaireManager';
 import { ImportResult, GeneratedFile, ReconciliationReport } from '@/types/payroll';
 
 const Index = () => {
@@ -97,6 +98,9 @@ const Index = () => {
         return <ImportHistory />;
 
       // Configuration modules
+      case 'referentiel':
+        return <ReferentielSocietaireManager />;
+
       case 'reference-table':
         return <ReferenceTableManager />;
       

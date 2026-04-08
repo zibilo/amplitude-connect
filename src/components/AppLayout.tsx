@@ -46,6 +46,7 @@ const navItems: NavItem[] = [
   { id: 'reconciliation', label: 'Réconciliation', icon: FileCheck2, section: 'principal' },
   { id: 'history', label: 'Historique', icon: History, section: 'principal' },
   { id: 'audit', label: 'Journal d\'Audit', icon: ClipboardList, section: 'principal' },
+  { id: 'referentiel', label: 'Référentiel', icon: PiggyBank, section: 'config' },
   { id: 'reference-table', label: 'Table Référence', icon: BookOpen, section: 'config' },
   { id: 'caisses', label: 'Table Caisses', icon: MapPin, section: 'config' },
   { id: 'companies', label: 'Entreprises', icon: Building2, section: 'config' },
