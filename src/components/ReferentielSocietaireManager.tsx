@@ -239,7 +239,7 @@ export function ReferentielSocietaireManager() {
     await supabase.from('audit_logs').insert([{
       action: 'referentiel_import',
       description: `Import référentiel: ${added} ajoutés, ${updated} mis à jour, ${rejected.length} rejetés`,
-      details: report as unknown as Record<string, unknown>,
+      details: JSON.parse(JSON.stringify(report)),
     }]);
 
     toast({ title: 'Import terminé', description: `${added} ajoutés, ${updated} mis à jour` });
