@@ -236,11 +236,11 @@ export function ReferentielSocietaireManager() {
     fetchReferentiel();
 
     // Audit
-    await supabase.from('audit_logs').insert({
+    await supabase.from('audit_logs').insert([{
       action: 'referentiel_import',
       description: `Import référentiel: ${added} ajoutés, ${updated} mis à jour, ${rejected.length} rejetés`,
       details: report as unknown as Record<string, unknown>,
-    });
+    }]);
 
     toast({ title: 'Import terminé', description: `${added} ajoutés, ${updated} mis à jour` });
   }, [parsedRows, importMode, fetchReferentiel, toast]);
