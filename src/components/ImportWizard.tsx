@@ -10,12 +10,13 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import {
   Calendar, Upload, CheckCircle2, AlertTriangle, XCircle,
   ChevronRight, ChevronLeft, FileSpreadsheet, Loader2, Shield, Building2, Search,
-  GitCompare, ArrowRight, Check
+  GitCompare, ArrowRight, Check, CreditCard, AlertCircle
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { cn } from '@/lib/utils';
@@ -40,16 +41,61 @@ interface ValidationResult {
   index: number;
   errors: string[];
   warnings: string[];
-  ribStatus: 'valid' | 'unknown' | 'mismatch' | 'inactive';
+  ribStatus: 'valid' | 'unknown' | 'mismatch' | 'inactive' | 'neutralized';
   referentielMatch?: ReferentielEntry;
   reconciled: boolean;
   reconciledRib?: string;
+  neutralizedRib?: string;
+  originalRib?: string;
 }
 
 interface CompanyProfile {
   id: string;
   nom_entreprise: string;
   code_client: string;
+}
+
+type FeeType = 'AVEC_FRAIS' | 'SANS_FRAIS' | 'CAS_PARTICULIER';
+
+interface FeeConfig {
+  type: FeeType;
+  compteSource: string;
+  cleRib: string;
+  feeInstruction?: string;
+  convention?: string;
+  label: string;
+}
+
+const FEE_CONFIGS: Record<FeeType, FeeConfig> = {
+  AVEC_FRAIS: {
+    type: 'AVEC_FRAIS',
+    compteSource: '38100300000',
+    cleRib: '35',
+    feeInstruction: '35000002',
+    label: 'Avec Frais',
+  },
+  SANS_FRAIS: {
+    type: 'SANS_FRAIS',
+    compteSource: '38100000000',
+    cleRib: '69',
+    convention: 'EECBZV2',
+    label: 'Sans Frais',
+  },
+  CAS_PARTICULIER: {
+    type: 'CAS_PARTICULIER',
+    compteSource: '38100000000',
+    cleRib: '69',
+    convention: 'EECBZV2',
+    label: 'Cas Particulier',
+  },
+};
+
+const TECHNICAL_ACCOUNT = '38100000000';
+
+function neutralizeRib(rib: string): string {
+  const bankCode = rib.substring(0, 5);
+  const branchCode = rib.substring(5, 10);
+  return bankCode + branchCode + TECHNICAL_ACCOUNT;
 }
 
 const MONTHS = [
@@ -63,11 +109,12 @@ const MONTHS = [
 
 const STEPS = [
   { id: 1, label: 'Entreprise', icon: Building2 },
-  { id: 2, label: 'Période', icon: Calendar },
-  { id: 3, label: 'Fichier', icon: Upload },
-  { id: 4, label: 'Audit RIB', icon: Shield },
-  { id: 5, label: 'Réconciliation', icon: GitCompare },
-  { id: 6, label: 'Import', icon: FileSpreadsheet },
+  { id: 2, label: 'Type de frais', icon: CreditCard },
+  { id: 3, label: 'Période', icon: Calendar },
+  { id: 4, label: 'Fichier', icon: Upload },
+  { id: 5, label: 'Audit RIB', icon: Shield },
+  { id: 6, label: 'Réconciliation', icon: GitCompare },
+  { id: 7, label: 'Import', icon: FileSpreadsheet },
 ];
 
 export function ImportWizard() {
@@ -75,6 +122,7 @@ export function ImportWizard() {
   const [step, setStep] = useState(1);
   const [companies, setCompanies] = useState<CompanyProfile[]>([]);
   const [selectedCompany, setSelectedCompany] = useState<string>('');
+  const [feeType, setFeeType] = useState<FeeType | ''>('');
   const [mois, setMois] = useState('');
   const [annee, setAnnee] = useState(new Date().getFullYear().toString());
   const [isQuinzaine, setIsQuinzaine] = useState(false);
@@ -89,6 +137,8 @@ export function ImportWizard() {
   const [isValidating, setIsValidating] = useState(false);
   const [reconciliationDialogOpen, setReconciliationDialogOpen] = useState(false);
   const [selectedReconciliation, setSelectedReconciliation] = useState<number | null>(null);
+
+  const feeConfig = feeType ? FEE_CONFIGS[feeType] : null;
 
   useEffect(() => {
     const fetchCompanies = async () => {
@@ -166,11 +216,10 @@ export function ImportWizard() {
     }
   }, [toast]);
 
-  // Step 4: Audit RIB against referentiel
+  // Step 5: Audit RIB against referentiel with neutralization logic
   const validateRIBs = useCallback(async () => {
     setIsValidating(true);
 
-    // Fetch all referentiel entries
     const { data: refData } = await supabase
       .from('account_status_cache')
       .select('rib, nom_titulaire, prenom_titulaire, id_societaire, account_status');
@@ -178,7 +227,6 @@ export function ImportWizard() {
     const refMap = new Map<string, ReferentielEntry>();
     refData?.forEach(r => refMap.set(r.rib, r as ReferentielEntry));
 
-    // Also build a name-based lookup for reconciliation
     const nameMap = new Map<string, ReferentielEntry[]>();
     refData?.forEach(r => {
       const fullName = `${r.nom_titulaire} ${r.prenom_titulaire || ''}`.trim().toUpperCase();
@@ -192,6 +240,8 @@ export function ImportWizard() {
       const warnings: string[] = [];
       let ribStatus: ValidationResult['ribStatus'] = 'valid';
       let referentielMatch: ReferentielEntry | undefined;
+      let neutralizedRib: string | undefined;
+      const originalRib = row.rib;
 
       if (!row.nom_complet) errors.push('Nom manquant');
       if (!row.rib) errors.push('RIB manquant');
@@ -204,15 +254,17 @@ export function ImportWizard() {
         } else {
           const refEntry = refMap.get(row.rib);
           if (!refEntry) {
-            // RIB not in referentiel - try to find by name
+            // RIB not found in referentiel
             const byName = nameMap.get(row.nom_complet);
             if (byName && byName.length > 0) {
               referentielMatch = byName.find(b => b.account_status === 'ACTIF') || byName[0];
               ribStatus = 'mismatch';
               warnings.push(`RIB inconnu — RIB certifié trouvé pour "${row.nom_complet}": ${referentielMatch.rib}`);
             } else {
-              ribStatus = 'unknown';
-              errors.push('RIB absent du référentiel sociétaire');
+              // Apply neutralization: keep bank+branch, replace account with technical account
+              neutralizedRib = neutralizeRib(row.rib);
+              ribStatus = 'neutralized';
+              warnings.push(`RIB absent du référentiel — Neutralisé vers compte technique: ${neutralizedRib}`);
             }
           } else if (refEntry.account_status !== 'ACTIF') {
             ribStatus = 'inactive';
@@ -225,7 +277,7 @@ export function ImportWizard() {
         }
       }
 
-      return { row, index, errors, warnings, ribStatus, referentielMatch, reconciled: false };
+      return { row, index, errors, warnings, ribStatus, referentielMatch, reconciled: false, neutralizedRib, originalRib };
     });
 
     setValidationResults(results);
@@ -272,7 +324,15 @@ export function ImportWizard() {
     setImportProgress(0);
 
     try {
-      const validEntries = validationResults.filter(r => r.errors.length === 0);
+      // Apply neutralization to unknown RIBs before import
+      const processedResults = validationResults.map(r => {
+        if (r.ribStatus === 'neutralized' && r.neutralizedRib) {
+          return { ...r, row: { ...r.row, rib: r.neutralizedRib } };
+        }
+        return r;
+      });
+
+      const validEntries = processedResults.filter(r => r.errors.length === 0);
 
       const { data: session, error: sessionErr } = await supabase
         .from('import_sessions')
@@ -306,8 +366,12 @@ export function ImportWizard() {
           code_caisse: r.row.rib.substring(5, 10),
           cco: r.row.rib.substring(10, r.row.rib.length - 2),
           montant: r.row.montant,
-          was_corrected: r.reconciled,
-          correction_details: r.reconciled ? JSON.stringify({ rib_original: r.reconciledRib, rib_corrige: r.row.rib }) : null,
+          was_corrected: r.reconciled || r.ribStatus === 'neutralized',
+          correction_details: r.reconciled
+            ? JSON.stringify({ type: 'reconciliation', rib_original: r.originalRib, rib_corrige: r.row.rib })
+            : r.ribStatus === 'neutralized'
+              ? JSON.stringify({ type: 'neutralization', rib_original: r.originalRib, rib_neutralise: r.neutralizedRib, fee_type: feeType })
+              : null,
           is_doublon: false,
           status: 'valid',
         }));
@@ -319,13 +383,17 @@ export function ImportWizard() {
       // Audit log
       await supabase.from('audit_logs').insert({
         action: 'import',
-        description: `Import paie: ${validEntries.length} lignes pour ${selectedCompanyName} (${mois.padStart(2, '0')}/${annee})`,
+        description: `Import paie (${feeConfig?.label}): ${validEntries.length} lignes pour ${selectedCompanyName} (${mois.padStart(2, '0')}/${annee})`,
         details: {
           entreprise: selectedCompanyName,
           periode: `${mois.padStart(2, '0')}/${annee}`,
+          fee_type: feeType,
+          compte_source: feeConfig?.compteSource,
+          cle_rib: feeConfig?.cleRib,
           total: validationResults.length,
           valides: validEntries.length,
           reconcilies: validationResults.filter(r => r.reconciled).length,
+          neutralises: validationResults.filter(r => r.ribStatus === 'neutralized').length,
         },
       });
 
@@ -341,21 +409,24 @@ export function ImportWizard() {
     } finally {
       setIsImporting(false);
     }
-  }, [mois, annee, file, isQuinzaine, selectedCompanyName, validationResults, toast]);
+  }, [mois, annee, file, isQuinzaine, selectedCompanyName, validationResults, feeType, feeConfig, toast]);
 
-  const validCount = validationResults.filter(r => r.errors.length === 0).length;
+  const validCount = validationResults.filter(r => r.errors.length === 0 && r.ribStatus !== 'neutralized').length;
   const errorCount = validationResults.filter(r => r.errors.length > 0).length;
   const mismatchCount = validationResults.filter(r => r.ribStatus === 'mismatch' && !r.reconciled).length;
   const reconciledCount = validationResults.filter(r => r.reconciled).length;
+  const neutralizedCount = validationResults.filter(r => r.ribStatus === 'neutralized').length;
+  const totalValidForImport = validationResults.filter(r => r.errors.length === 0).length;
 
   const canAdvance = () => {
     switch (step) {
       case 1: return !!selectedCompany;
-      case 2: return !!(mois && annee && duplicateCheckDone && (!duplicateExists || isQuinzaine));
-      case 3: return parsedData.length > 0;
-      case 4: return validationResults.length > 0;
-      case 5: return mismatchCount === 0 && errorCount === 0;
-      case 6: return true;
+      case 2: return !!feeType;
+      case 3: return !!(mois && annee && duplicateCheckDone && (!duplicateExists || isQuinzaine));
+      case 4: return parsedData.length > 0;
+      case 5: return validationResults.length > 0;
+      case 6: return mismatchCount === 0 && errorCount === 0;
+      case 7: return true;
       default: return false;
     }
   };
@@ -434,12 +505,116 @@ export function ImportWizard() {
             </div>
           )}
 
-          {/* STEP 2: Period */}
+          {/* STEP 2: Fee Type */}
           {step === 2 && (
+            <div className="space-y-6 max-w-2xl">
+              <CardHeader className="p-0">
+                <CardTitle className="flex items-center gap-2">
+                  <CreditCard className="h-5 w-5 text-primary" />
+                  Type d'importation
+                </CardTitle>
+                <CardDescription>
+                  Entreprise : <strong>{selectedCompanyName}</strong> — Sélectionnez le mode de traitement des frais
+                </CardDescription>
+              </CardHeader>
+
+              <RadioGroup value={feeType} onValueChange={(v) => setFeeType(v as FeeType)} className="grid gap-4">
+                {/* AVEC FRAIS */}
+                <label htmlFor="fee-avec" className={cn(
+                  "flex items-start gap-4 p-4 rounded-lg border-2 cursor-pointer transition-all hover:shadow-md",
+                  feeType === 'AVEC_FRAIS' ? "border-primary bg-primary/5" : "border-border"
+                )}>
+                  <RadioGroupItem value="AVEC_FRAIS" id="fee-avec" className="mt-1" />
+                  <div className="flex-1 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-foreground">Avec Frais</span>
+                      <Badge className="bg-amber-100 text-amber-800 border-amber-300 text-xs">Standard</Badge>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      Les frais de virement sont prélevés. Les virements sont effectués via le compte source avec instruction de frais.
+                    </p>
+                    <div className="grid grid-cols-2 gap-2 text-xs bg-muted/50 rounded-md p-2 font-mono">
+                      <div><span className="text-muted-foreground">Compte Source:</span> 38100300000</div>
+                      <div><span className="text-muted-foreground">Clé RIB:</span> 35</div>
+                      <div><span className="text-muted-foreground">Instruction:</span> 35000002</div>
+                      <div><span className="text-muted-foreground">Bénéficiaire:</span> RIB réel</div>
+                    </div>
+                  </div>
+                </label>
+
+                {/* SANS FRAIS */}
+                <label htmlFor="fee-sans" className={cn(
+                  "flex items-start gap-4 p-4 rounded-lg border-2 cursor-pointer transition-all hover:shadow-md",
+                  feeType === 'SANS_FRAIS' ? "border-primary bg-primary/5" : "border-border"
+                )}>
+                  <RadioGroupItem value="SANS_FRAIS" id="fee-sans" className="mt-1" />
+                  <div className="flex-1 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-foreground">Sans Frais</span>
+                      <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300 text-xs">Caisse Fédérale</Badge>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      Aucun frais prélevé. Les virements passent par le compte pivot de la Caisse Fédérale (convention EECBZV2).
+                    </p>
+                    <div className="grid grid-cols-2 gap-2 text-xs bg-muted/50 rounded-md p-2 font-mono">
+                      <div><span className="text-muted-foreground">Compte Source:</span> 38100000000</div>
+                      <div><span className="text-muted-foreground">Clé RIB:</span> 69</div>
+                      <div><span className="text-muted-foreground">Convention:</span> EECBZV2</div>
+                      <div><span className="text-muted-foreground">Bénéficiaire:</span> RIB réel</div>
+                    </div>
+                  </div>
+                </label>
+
+                {/* CAS PARTICULIER */}
+                <label htmlFor="fee-cas" className={cn(
+                  "flex items-start gap-4 p-4 rounded-lg border-2 cursor-pointer transition-all hover:shadow-md",
+                  feeType === 'CAS_PARTICULIER' ? "border-primary bg-primary/5" : "border-border"
+                )}>
+                  <RadioGroupItem value="CAS_PARTICULIER" id="fee-cas" className="mt-1" />
+                  <div className="flex-1 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-foreground">Cas Particulier</span>
+                      <Badge className="bg-orange-100 text-orange-800 border-orange-300 text-xs">Réconciliation</Badge>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      Si le RIB du sociétaire est inconnu, le système neutralise le numéro de compte en le remplaçant par le compte technique <strong>38100000000</strong> tout en conservant le code banque et agence d'origine.
+                    </p>
+                    <div className="grid grid-cols-2 gap-2 text-xs bg-muted/50 rounded-md p-2 font-mono">
+                      <div><span className="text-muted-foreground">Compte Source:</span> 38100000000</div>
+                      <div><span className="text-muted-foreground">Clé RIB:</span> 69</div>
+                      <div><span className="text-muted-foreground">Convention:</span> EECBZV2</div>
+                      <div><span className="text-muted-foreground">Inconnu:</span> Banque+Agence+38100000000</div>
+                    </div>
+                    <Alert className="border-orange-300 bg-orange-50 py-2">
+                      <AlertCircle className="h-3 w-3 text-orange-600" />
+                      <AlertDescription className="text-xs text-orange-700">
+                        Les fonds des RIB inconnus seront dirigés vers un compte d'attente technique au sein de l'agence du bénéficiaire.
+                      </AlertDescription>
+                    </Alert>
+                  </div>
+                </label>
+              </RadioGroup>
+
+              {feeType && (
+                <Alert>
+                  <CheckCircle2 className="h-4 w-4 text-success" />
+                  <AlertTitle>Mode sélectionné : {feeConfig?.label}</AlertTitle>
+                  <AlertDescription>
+                    Compte source : <span className="font-mono">{feeConfig?.compteSource}</span> — Clé : <span className="font-mono">{feeConfig?.cleRib}</span>
+                  </AlertDescription>
+                </Alert>
+              )}
+            </div>
+          )}
+
+          {/* STEP 3: Period */}
+          {step === 3 && (
             <div className="space-y-4 max-w-md">
               <CardHeader className="p-0">
                 <CardTitle>Sélection de la période</CardTitle>
-                <CardDescription>Entreprise : <strong>{selectedCompanyName}</strong></CardDescription>
+                <CardDescription>
+                  Entreprise : <strong>{selectedCompanyName}</strong> — Mode : <Badge variant="outline">{feeConfig?.label}</Badge>
+                </CardDescription>
               </CardHeader>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -473,13 +648,13 @@ export function ImportWizard() {
             </div>
           )}
 
-          {/* STEP 3: File */}
-          {step === 3 && (
+          {/* STEP 4: File */}
+          {step === 4 && (
             <div className="space-y-4">
               <CardHeader className="p-0">
                 <CardTitle>Choisir le fichier</CardTitle>
                 <CardDescription>
-                  {selectedCompanyName} — {mois.padStart(2, '0')}/{annee}
+                  {selectedCompanyName} — {mois.padStart(2, '0')}/{annee} — <Badge variant="outline">{feeConfig?.label}</Badge>
                   <br />Format : PÉRIODE, NOM ET PRÉNOM, RIB COMPLET, MONTANT
                 </CardDescription>
               </CardHeader>
@@ -517,15 +692,17 @@ export function ImportWizard() {
             </div>
           )}
 
-          {/* STEP 4: Audit RIB */}
-          {step === 4 && (
+          {/* STEP 5: Audit RIB */}
+          {step === 5 && (
             <div className="space-y-4">
               <CardHeader className="p-0">
                 <CardTitle className="flex items-center gap-2">
                   <Shield className="h-5 w-5 text-primary" />
                   Audit RIB — Comparaison avec le Référentiel
                 </CardTitle>
-                <CardDescription>Chaque RIB du fichier est comparé à la base de données certifiée des sociétaires</CardDescription>
+                <CardDescription>
+                  Mode : <Badge variant="outline">{feeConfig?.label}</Badge> — Chaque RIB est comparé à la base certifiée
+                </CardDescription>
               </CardHeader>
 
               {validationResults.length === 0 ? (
@@ -535,24 +712,38 @@ export function ImportWizard() {
                 </Button>
               ) : (
                 <>
-                  <div className="grid grid-cols-4 gap-4">
+                  <div className="grid grid-cols-5 gap-3">
                     <Card><CardContent className="pt-4 text-center">
                       <p className="text-2xl font-bold text-success">{validCount}</p>
-                      <p className="text-xs text-muted-foreground">RIB valides</p>
+                      <p className="text-xs text-muted-foreground">Certifiés</p>
                     </CardContent></Card>
                     <Card><CardContent className="pt-4 text-center">
                       <p className="text-2xl font-bold text-warning">{mismatchCount}</p>
                       <p className="text-xs text-muted-foreground">Non concordants</p>
                     </CardContent></Card>
                     <Card><CardContent className="pt-4 text-center">
-                      <p className="text-2xl font-bold text-destructive">{validationResults.filter(r => r.ribStatus === 'unknown').length}</p>
-                      <p className="text-xs text-muted-foreground">Inconnus</p>
+                      <p className="text-2xl font-bold text-orange-500">{neutralizedCount}</p>
+                      <p className="text-xs text-muted-foreground">Neutralisés</p>
+                    </CardContent></Card>
+                    <Card><CardContent className="pt-4 text-center">
+                      <p className="text-2xl font-bold text-destructive">{errorCount}</p>
+                      <p className="text-xs text-muted-foreground">Erreurs</p>
                     </CardContent></Card>
                     <Card><CardContent className="pt-4 text-center">
                       <p className="text-2xl font-bold text-primary">{reconciledCount}</p>
                       <p className="text-xs text-muted-foreground">Réconciliés</p>
                     </CardContent></Card>
                   </div>
+
+                  {neutralizedCount > 0 && (
+                    <Alert className="border-orange-300 bg-orange-50">
+                      <AlertCircle className="h-4 w-4 text-orange-600" />
+                      <AlertTitle className="text-orange-800">{neutralizedCount} RIB neutralisé(s)</AlertTitle>
+                      <AlertDescription className="text-orange-700">
+                        Ces bénéficiaires ne sont pas dans le référentiel. Leurs virements seront redirigés vers le compte technique <span className="font-mono font-bold">38100000000</span> au sein de leur agence d'origine.
+                      </AlertDescription>
+                    </Alert>
+                  )}
 
                   <div className="rounded-lg border overflow-auto max-h-96">
                     <Table>
@@ -561,7 +752,7 @@ export function ImportWizard() {
                           <TableHead className="w-12">#</TableHead>
                           <TableHead>Nom</TableHead>
                           <TableHead>RIB Fichier</TableHead>
-                          <TableHead>RIB Référentiel</TableHead>
+                          <TableHead>RIB Final</TableHead>
                           <TableHead className="text-right">Montant</TableHead>
                           <TableHead>Statut</TableHead>
                         </TableRow>
@@ -571,19 +762,34 @@ export function ImportWizard() {
                           <TableRow key={r.index} className={cn(
                             r.ribStatus === 'valid' && 'bg-success/5',
                             r.ribStatus === 'mismatch' && !r.reconciled && 'bg-warning/10',
+                            r.ribStatus === 'neutralized' && 'bg-orange-50',
                             (r.ribStatus === 'unknown' || r.ribStatus === 'inactive') && 'bg-destructive/5',
                             r.reconciled && 'bg-primary/5'
                           )}>
                             <TableCell className="text-muted-foreground">{r.index + 1}</TableCell>
                             <TableCell>{r.row.nom_complet}</TableCell>
-                            <TableCell className="font-mono text-xs">{r.reconciled ? <s className="text-muted-foreground">{r.reconciledRib !== r.row.rib ? r.reconciledRib : ''}</s> : r.row.rib}</TableCell>
-                            <TableCell className="font-mono text-xs">{r.referentielMatch?.rib || '—'}</TableCell>
+                            <TableCell className="font-mono text-xs">
+                              {r.reconciled ? <s className="text-muted-foreground">{r.originalRib}</s> : r.row.rib}
+                            </TableCell>
+                            <TableCell className="font-mono text-xs">
+                              {r.ribStatus === 'neutralized' ? (
+                                <span className="text-orange-600 font-semibold">{r.neutralizedRib}</span>
+                              ) : r.reconciled ? (
+                                <span className="text-success">{r.row.rib}</span>
+                              ) : r.referentielMatch ? (
+                                r.referentielMatch.rib
+                              ) : '—'}
+                            </TableCell>
                             <TableCell className="text-right font-mono">{r.row.montant.toLocaleString('fr-FR')}</TableCell>
                             <TableCell>
                               {r.reconciled ? (
                                 <Badge className="bg-primary text-primary-foreground text-xs"><Check className="h-3 w-3 mr-1" />Réconcilié</Badge>
                               ) : r.ribStatus === 'valid' ? (
                                 <Badge className="bg-success text-success-foreground text-xs">✓ Certifié</Badge>
+                              ) : r.ribStatus === 'neutralized' ? (
+                                <Badge className="bg-orange-100 text-orange-800 border-orange-300 text-xs">
+                                  <AlertCircle className="h-3 w-3 mr-1" />Neutralisé
+                                </Badge>
                               ) : r.ribStatus === 'mismatch' ? (
                                 <Button size="sm" variant="outline" className="h-7 text-xs border-warning text-warning" onClick={() => { setSelectedReconciliation(r.index); setReconciliationDialogOpen(true); }}>
                                   <GitCompare className="h-3 w-3 mr-1" />Réconcilier
@@ -614,8 +820,8 @@ export function ImportWizard() {
             </div>
           )}
 
-          {/* STEP 5: Reconciliation */}
-          {step === 5 && (
+          {/* STEP 6: Reconciliation */}
+          {step === 6 && (
             <div className="space-y-4">
               <CardHeader className="p-0">
                 <CardTitle className="flex items-center gap-2">
@@ -669,43 +875,105 @@ export function ImportWizard() {
                     Réconcilier tout ({mismatchCount} lignes)
                   </Button>
                 </>
-              ) : errorCount > 0 ? (
-                <Alert variant="destructive">
-                  <XCircle className="h-4 w-4" />
-                  <AlertTitle>{errorCount} erreur(s) bloquante(s)</AlertTitle>
-                  <AlertDescription>Certaines lignes ont des erreurs qui ne peuvent pas être réconciliées (RIB inconnu, compte inactif). Corrigez le fichier source.</AlertDescription>
-                </Alert>
               ) : (
-                <Alert>
-                  <CheckCircle2 className="h-4 w-4 text-success" />
-                  <AlertTitle>Toutes les lignes sont validées</AlertTitle>
-                  <AlertDescription>
-                    {validCount} RIB certifiés{reconciledCount > 0 && `, dont ${reconciledCount} réconciliés`}. Prêt pour l'import.
-                  </AlertDescription>
-                </Alert>
+                <>
+                  {neutralizedCount > 0 && (
+                    <Alert className="border-orange-300 bg-orange-50">
+                      <AlertCircle className="h-4 w-4 text-orange-600" />
+                      <AlertTitle className="text-orange-800">{neutralizedCount} ligne(s) neutralisée(s)</AlertTitle>
+                      <AlertDescription className="text-orange-700">
+                        Les virements suivants seront redirigés vers le compte technique <span className="font-mono font-bold">38100000000</span> de l'agence du bénéficiaire.
+                      </AlertDescription>
+                    </Alert>
+                  )}
+
+                  {neutralizedCount > 0 && (
+                    <div className="rounded-lg border overflow-auto max-h-60">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Nom</TableHead>
+                            <TableHead>RIB Original</TableHead>
+                            <TableHead className="text-center">→</TableHead>
+                            <TableHead>RIB Neutralisé</TableHead>
+                            <TableHead className="text-right">Montant</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {validationResults.filter(r => r.ribStatus === 'neutralized').map(r => (
+                            <TableRow key={r.index} className="bg-orange-50">
+                              <TableCell>{r.row.nom_complet}</TableCell>
+                              <TableCell className="font-mono text-xs text-destructive">{r.originalRib}</TableCell>
+                              <TableCell className="text-center"><ArrowRight className="h-4 w-4 text-orange-500 mx-auto" /></TableCell>
+                              <TableCell className="font-mono text-xs text-orange-600 font-semibold">{r.neutralizedRib}</TableCell>
+                              <TableCell className="text-right font-mono">{r.row.montant.toLocaleString('fr-FR')}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+
+                  {errorCount > 0 ? (
+                    <Alert variant="destructive">
+                      <XCircle className="h-4 w-4" />
+                      <AlertTitle>{errorCount} erreur(s) bloquante(s)</AlertTitle>
+                      <AlertDescription>Certaines lignes ont des erreurs qui ne peuvent pas être réconciliées. Corrigez le fichier source.</AlertDescription>
+                    </Alert>
+                  ) : (
+                    <Alert>
+                      <CheckCircle2 className="h-4 w-4 text-success" />
+                      <AlertTitle>Toutes les lignes sont prêtes</AlertTitle>
+                      <AlertDescription>
+                        {validCount} RIB certifiés
+                        {reconciledCount > 0 && `, ${reconciledCount} réconciliés`}
+                        {neutralizedCount > 0 && `, ${neutralizedCount} neutralisés vers compte technique`}
+                        . Prêt pour l'import.
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                </>
               )}
             </div>
           )}
 
-          {/* STEP 6: Import */}
-          {step === 6 && (
+          {/* STEP 7: Import */}
+          {step === 7 && (
             <div className="space-y-4">
               <CardHeader className="p-0">
                 <CardTitle>Confirmation d'import</CardTitle>
-                <CardDescription>{validCount} lignes prêtes pour <strong>{selectedCompanyName}</strong> — {mois.padStart(2, '0')}/{annee}</CardDescription>
+                <CardDescription>{totalValidForImport} lignes prêtes pour <strong>{selectedCompanyName}</strong> — {mois.padStart(2, '0')}/{annee}</CardDescription>
               </CardHeader>
 
-              <div className="grid grid-cols-2 gap-4 max-w-md">
+              <div className="grid grid-cols-2 gap-4 max-w-lg">
                 <div className="text-sm"><span className="text-muted-foreground">Entreprise:</span> {selectedCompanyName}</div>
+                <div className="text-sm"><span className="text-muted-foreground">Mode:</span> <Badge variant="outline">{feeConfig?.label}</Badge></div>
                 <div className="text-sm"><span className="text-muted-foreground">Fichier:</span> {file?.name}</div>
                 <div className="text-sm"><span className="text-muted-foreground">Période:</span> {mois.padStart(2, '0')}/{annee}</div>
+                <div className="text-sm"><span className="text-muted-foreground">Compte source:</span> <span className="font-mono">{feeConfig?.compteSource}</span></div>
+                <div className="text-sm"><span className="text-muted-foreground">Clé RIB:</span> <span className="font-mono">{feeConfig?.cleRib}</span></div>
                 <div className="text-sm"><span className="text-muted-foreground">Lignes valides:</span> {validCount}</div>
                 <div className="text-sm"><span className="text-muted-foreground">Réconciliés:</span> {reconciledCount}</div>
+                {neutralizedCount > 0 && (
+                  <div className="text-sm col-span-2 text-orange-700">
+                    <span className="text-muted-foreground">Neutralisés:</span> {neutralizedCount} (→ compte technique 38100000000)
+                  </div>
+                )}
                 <div className="text-sm col-span-2">
                   <span className="text-muted-foreground">Montant total:</span>{' '}
                   {validationResults.filter(r => r.errors.length === 0).reduce((s, r) => s + r.row.montant, 0).toLocaleString('fr-FR')} FCFA
                 </div>
               </div>
+
+              {feeConfig?.feeInstruction && (
+                <Alert>
+                  <CreditCard className="h-4 w-4" />
+                  <AlertTitle>Instruction de frais active</AlertTitle>
+                  <AlertDescription>
+                    Code instruction : <span className="font-mono font-bold">{feeConfig.feeInstruction}</span>
+                  </AlertDescription>
+                </Alert>
+              )}
 
               {isImporting && (
                 <div className="space-y-2">
@@ -719,7 +987,7 @@ export function ImportWizard() {
                   <CheckCircle2 className="h-4 w-4 text-success" />
                   <AlertTitle>Import réussi</AlertTitle>
                   <AlertDescription>
-                    {validCount} lignes importées pour <strong>{selectedCompanyName}</strong>.
+                    {totalValidForImport} lignes importées pour <strong>{selectedCompanyName}</strong> ({feeConfig?.label}).
                     Rendez-vous dans le module <strong>Génération</strong> pour lancer le Triple Check et générer le fichier XML ISO 20022.
                   </AlertDescription>
                 </Alert>
@@ -741,11 +1009,11 @@ export function ImportWizard() {
         </Button>
         <Button
           onClick={() => {
-            if (step === 2 && !duplicateCheckDone) { checkDuplicateMonth(); return; }
-            if (step === 4 && validationResults.length === 0) { validateRIBs(); return; }
+            if (step === 3 && !duplicateCheckDone) { checkDuplicateMonth(); return; }
+            if (step === 5 && validationResults.length === 0) { validateRIBs(); return; }
             setStep(s => s + 1);
           }}
-          disabled={step === 6 || !canAdvance()}
+          disabled={step === 7 || !canAdvance()}
         >
           Suivant <ChevronRight className="h-4 w-4 ml-1" />
         </Button>
