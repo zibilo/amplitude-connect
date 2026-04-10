@@ -234,7 +234,7 @@ export function OracleConfigManager() {
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
               {connectionStatus === 'connected' ? (
-                <Wifi className="h-8 w-8 text-green-500" />
+                <Wifi className="h-8 w-8 text-primary" />
               ) : connectionStatus === 'error' ? (
                 <WifiOff className="h-8 w-8 text-destructive" />
               ) : (
