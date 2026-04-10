@@ -19,7 +19,8 @@ import {
   History,
   Search,
   PiggyBank,
-  BarChart3
+  BarChart3,
+  Database
 } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -55,6 +56,7 @@ const navItems: NavItem[] = [
   { id: 'flux', label: 'Compteur Flux', icon: Calendar, section: 'suivi' },
   { id: 'alerts', label: 'Alertes', icon: AlertTriangle, section: 'suivi' },
   { id: 'matricule', label: 'Outil Matricule', icon: Hash, section: 'outils' },
+  { id: 'oracle', label: 'Oracle Amplitude', icon: Database, section: 'config' },
 ];
 
 export function AppLayout({ children, activeTab, onTabChange }: AppLayoutProps) {

@@ -18,6 +18,7 @@ import { ReferenceTableManager } from '@/components/ReferenceTableManager';
 import { CaissesManager } from '@/components/CaissesManager';
 import { ImportHistory } from '@/components/ImportHistory';
 import { ReferentielSocietaireManager } from '@/components/ReferentielSocietaireManager';
+import { OracleConfigManager } from '@/components/OracleConfigManager';
 import { ImportResult, GeneratedFile, ReconciliationReport } from '@/types/payroll';
 
 const Index = () => {
@@ -122,6 +123,9 @@ const Index = () => {
       
       case 'alerts':
         return <IntegrityAlertsPanel />;
+
+      case 'oracle':
+        return <OracleConfigManager />;
 
       // Tools
       case 'matricule':

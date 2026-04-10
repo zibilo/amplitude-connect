@@ -94,13 +94,26 @@ export function OracleConfigManager() {
   const saveConfig = useCallback(async () => {
     setIsSaving(true);
     try {
-      const { error } = await supabase
+      // Check if config exists first
+      const { data: existing } = await supabase
         .from('system_config')
-        .upsert({
-          key: 'oracle_middleware',
-          value: { url: config.url, api_key: config.api_key } as unknown as Record<string, unknown>,
-          description: 'Configuration du middleware Oracle Amplitude',
-        }, { onConflict: 'key' });
+        .select('id')
+        .eq('key', 'oracle_middleware')
+        .single();
+
+      let error;
+      const valuePayload = JSON.parse(JSON.stringify({ url: config.url, api_key: config.api_key }));
+      
+      if (existing) {
+        ({ error } = await supabase
+          .from('system_config')
+          .update({ value: valuePayload, description: 'Configuration du middleware Oracle Amplitude' })
+          .eq('key', 'oracle_middleware'));
+      } else {
+        ({ error } = await supabase
+          .from('system_config')
+          .insert({ key: 'oracle_middleware', value: valuePayload, description: 'Configuration du middleware Oracle Amplitude' }));
+      }
 
       if (error) throw error;
       toast({ title: 'Configuration sauvegardée' });
