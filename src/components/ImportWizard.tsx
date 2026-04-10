@@ -216,10 +216,46 @@ export function ImportWizard() {
     }
   }, [toast]);
 
-  // Step 5: Audit RIB against referentiel with neutralization logic
+  // Step 5: Audit RIB against referentiel (Oracle first, then local cache)
   const validateRIBs = useCallback(async () => {
     setIsValidating(true);
 
+    // 1. Try Oracle validation first via edge function
+    let oracleResults: Record<string, { found: boolean; nom_oracle?: string; id_societaire?: string; account_status?: string; is_valid?: boolean; proposed_correction?: { rib: string; nom: string; id_societaire: string } | null }> = {};
+    let oracleAvailable = false;
+
+    try {
+      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+      const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+
+      const ribsToValidate = parsedData.map(r => ({ rib: r.rib, nom: r.nom_complet }));
+      
+      const resp = await fetch(
+        `https://${projectId}.supabase.co/functions/v1/oracle-proxy?action=validate-batch`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${anonKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ ribs: ribsToValidate }),
+        }
+      );
+
+      if (resp.ok) {
+        const oracleData = await resp.json();
+        if (oracleData.data) {
+          oracleAvailable = true;
+          for (const r of oracleData.data) {
+            oracleResults[r.rib] = r;
+          }
+        }
+      }
+    } catch {
+      // Oracle not available, fall back to local cache
+    }
+
+    // 2. Load local referentiel as fallback
     const { data: refData } = await supabase
       .from('account_status_cache')
       .select('rib, nom_titulaire, prenom_titulaire, id_societaire, account_status');
@@ -252,27 +288,80 @@ export function ImportWizard() {
           errors.push(`RIB longueur invalide (${row.rib.length})`);
           ribStatus = 'unknown';
         } else {
-          const refEntry = refMap.get(row.rib);
-          if (!refEntry) {
-            // RIB not found in referentiel
-            const byName = nameMap.get(row.nom_complet);
-            if (byName && byName.length > 0) {
-              referentielMatch = byName.find(b => b.account_status === 'ACTIF') || byName[0];
+          // Check Oracle result first
+          const oracleEntry = oracleResults[row.rib];
+          
+          if (oracleAvailable && oracleEntry) {
+            if (oracleEntry.found && oracleEntry.is_valid) {
+              ribStatus = 'valid';
+              referentielMatch = {
+                rib: row.rib,
+                nom_titulaire: oracleEntry.nom_oracle || '',
+                prenom_titulaire: null,
+                id_societaire: oracleEntry.id_societaire || '',
+                account_status: oracleEntry.account_status || 'ACTIF',
+              };
+              warnings.push('✓ Validé via Oracle Amplitude');
+            } else if (oracleEntry.found && !oracleEntry.is_valid) {
+              ribStatus = 'inactive';
+              referentielMatch = {
+                rib: row.rib,
+                nom_titulaire: oracleEntry.nom_oracle || '',
+                prenom_titulaire: null,
+                id_societaire: oracleEntry.id_societaire || '',
+                account_status: oracleEntry.account_status || 'INACTIF',
+              };
+              errors.push(`Compte ${oracleEntry.account_status} (Oracle) — Impossible de traiter`);
+            } else if (!oracleEntry.found && oracleEntry.proposed_correction) {
               ribStatus = 'mismatch';
-              warnings.push(`RIB inconnu — RIB certifié trouvé pour "${row.nom_complet}": ${referentielMatch.rib}`);
+              referentielMatch = {
+                rib: oracleEntry.proposed_correction.rib,
+                nom_titulaire: oracleEntry.proposed_correction.nom,
+                prenom_titulaire: null,
+                id_societaire: oracleEntry.proposed_correction.id_societaire,
+                account_status: 'ACTIF',
+              };
+              warnings.push(`RIB inconnu Oracle — Correction proposée: ${oracleEntry.proposed_correction.rib}`);
             } else {
-              // Apply neutralization: keep bank+branch, replace account with technical account
-              neutralizedRib = neutralizeRib(row.rib);
-              ribStatus = 'neutralized';
-              warnings.push(`RIB absent du référentiel — Neutralisé vers compte technique: ${neutralizedRib}`);
+              // Not found in Oracle, try local cache
+              const refEntry = refMap.get(row.rib);
+              if (refEntry) {
+                if (refEntry.account_status !== 'ACTIF') {
+                  ribStatus = 'inactive';
+                  referentielMatch = refEntry;
+                  errors.push(`Compte ${refEntry.account_status} — Impossible de traiter`);
+                } else {
+                  ribStatus = 'valid';
+                  referentielMatch = refEntry;
+                }
+              } else {
+                neutralizedRib = neutralizeRib(row.rib);
+                ribStatus = 'neutralized';
+                warnings.push(`RIB absent d'Oracle et du cache local — Neutralisé: ${neutralizedRib}`);
+              }
             }
-          } else if (refEntry.account_status !== 'ACTIF') {
-            ribStatus = 'inactive';
-            referentielMatch = refEntry;
-            errors.push(`Compte ${refEntry.account_status} — Impossible de traiter`);
           } else {
-            ribStatus = 'valid';
-            referentielMatch = refEntry;
+            // Fallback: local cache only
+            const refEntry = refMap.get(row.rib);
+            if (!refEntry) {
+              const byName = nameMap.get(row.nom_complet);
+              if (byName && byName.length > 0) {
+                referentielMatch = byName.find(b => b.account_status === 'ACTIF') || byName[0];
+                ribStatus = 'mismatch';
+                warnings.push(`RIB inconnu — RIB certifié trouvé pour "${row.nom_complet}": ${referentielMatch.rib}`);
+              } else {
+                neutralizedRib = neutralizeRib(row.rib);
+                ribStatus = 'neutralized';
+                warnings.push(`RIB absent du référentiel — Neutralisé vers compte technique: ${neutralizedRib}`);
+              }
+            } else if (refEntry.account_status !== 'ACTIF') {
+              ribStatus = 'inactive';
+              referentielMatch = refEntry;
+              errors.push(`Compte ${refEntry.account_status} — Impossible de traiter`);
+            } else {
+              ribStatus = 'valid';
+              referentielMatch = refEntry;
+            }
           }
         }
       }
@@ -282,7 +371,11 @@ export function ImportWizard() {
 
     setValidationResults(results);
     setIsValidating(false);
-  }, [parsedData]);
+    
+    if (oracleAvailable) {
+      toast({ title: '🔗 Validation Oracle', description: 'Les RIB ont été vérifiés en temps réel depuis la base Amplitude.' });
+    }
+  }, [parsedData, toast]);
 
   // Reconcile a single row
   const reconcileRow = useCallback((index: number) => {
