@@ -209,6 +209,7 @@ export type Database = {
           nom_entreprise: string
           notes: string | null
           updated_at: string | null
+          ville: Database["public"]["Enums"]["ville_region"]
         }
         Insert: {
           adresse?: string | null
@@ -224,6 +225,7 @@ export type Database = {
           nom_entreprise: string
           notes?: string | null
           updated_at?: string | null
+          ville?: Database["public"]["Enums"]["ville_region"]
         }
         Update: {
           adresse?: string | null
@@ -239,6 +241,7 @@ export type Database = {
           nom_entreprise?: string
           notes?: string | null
           updated_at?: string | null
+          ville?: Database["public"]["Enums"]["ville_region"]
         }
         Relationships: []
       }
@@ -694,6 +697,7 @@ export type Database = {
           annee: number
           corrections_applied: number | null
           created_at: string | null
+          created_by: string | null
           entreprise: string | null
           file_name: string
           id: string
@@ -704,11 +708,13 @@ export type Database = {
           montant_total: number | null
           status: string | null
           total_lignes: number | null
+          ville: Database["public"]["Enums"]["ville_region"]
         }
         Insert: {
           annee: number
           corrections_applied?: number | null
           created_at?: string | null
+          created_by?: string | null
           entreprise?: string | null
           file_name: string
           id?: string
@@ -719,11 +725,13 @@ export type Database = {
           montant_total?: number | null
           status?: string | null
           total_lignes?: number | null
+          ville?: Database["public"]["Enums"]["ville_region"]
         }
         Update: {
           annee?: number
           corrections_applied?: number | null
           created_at?: string | null
+          created_by?: string | null
           entreprise?: string | null
           file_name?: string
           id?: string
@@ -734,6 +742,7 @@ export type Database = {
           montant_total?: number | null
           status?: string | null
           total_lignes?: number | null
+          ville?: Database["public"]["Enums"]["ville_region"]
         }
         Relationships: []
       }
@@ -1046,6 +1055,7 @@ export type Database = {
       payroll_imports: {
         Row: {
           created_at: string
+          created_by: string | null
           error_message: string | null
           file_hash: string | null
           file_name: string
@@ -1059,9 +1069,11 @@ export type Database = {
           total_entries: number | null
           updated_at: string
           valid_entries: number | null
+          ville: Database["public"]["Enums"]["ville_region"]
         }
         Insert: {
           created_at?: string
+          created_by?: string | null
           error_message?: string | null
           file_hash?: string | null
           file_name: string
@@ -1075,9 +1087,11 @@ export type Database = {
           total_entries?: number | null
           updated_at?: string
           valid_entries?: number | null
+          ville?: Database["public"]["Enums"]["ville_region"]
         }
         Update: {
           created_at?: string
+          created_by?: string | null
           error_message?: string | null
           file_hash?: string | null
           file_name?: string
@@ -1091,6 +1105,7 @@ export type Database = {
           total_entries?: number | null
           updated_at?: string
           valid_entries?: number | null
+          ville?: Database["public"]["Enums"]["ville_region"]
         }
         Relationships: []
       }
@@ -1272,6 +1287,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          display_name: string | null
+          email: string
+          id: string
+          updated_at: string
+          user_id: string
+          ville: Database["public"]["Enums"]["ville_region"]
+        }
+        Insert: {
+          created_at?: string
+          display_name?: string | null
+          email: string
+          id?: string
+          updated_at?: string
+          user_id: string
+          ville?: Database["public"]["Enums"]["ville_region"]
+        }
+        Update: {
+          created_at?: string
+          display_name?: string | null
+          email?: string
+          id?: string
+          updated_at?: string
+          user_id?: string
+          ville?: Database["public"]["Enums"]["ville_region"]
+        }
+        Relationships: []
       }
       reconciliation_entries: {
         Row: {
@@ -1735,6 +1780,93 @@ export type Database = {
         }
         Relationships: []
       }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+          ville: Database["public"]["Enums"]["ville_region"] | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+          ville?: Database["public"]["Enums"]["ville_region"] | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+          ville?: Database["public"]["Enums"]["ville_region"] | null
+        }
+        Relationships: []
+      }
+      validation_workflow: {
+        Row: {
+          created_at: string
+          id: string
+          import_id: string | null
+          rejection_reason: string | null
+          session_id: string | null
+          status: Database["public"]["Enums"]["validation_status"]
+          submitted_by: string | null
+          transferred_at: string | null
+          updated_at: string
+          validated_at: string | null
+          validated_by: string | null
+          validation_method: string | null
+          ville: Database["public"]["Enums"]["ville_region"]
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          import_id?: string | null
+          rejection_reason?: string | null
+          session_id?: string | null
+          status?: Database["public"]["Enums"]["validation_status"]
+          submitted_by?: string | null
+          transferred_at?: string | null
+          updated_at?: string
+          validated_at?: string | null
+          validated_by?: string | null
+          validation_method?: string | null
+          ville: Database["public"]["Enums"]["ville_region"]
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          import_id?: string | null
+          rejection_reason?: string | null
+          session_id?: string | null
+          status?: Database["public"]["Enums"]["validation_status"]
+          submitted_by?: string | null
+          transferred_at?: string | null
+          updated_at?: string
+          validated_at?: string | null
+          validated_by?: string | null
+          validation_method?: string | null
+          ville?: Database["public"]["Enums"]["ville_region"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "validation_workflow_import_id_fkey"
+            columns: ["import_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_imports"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "validation_workflow_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "import_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -1787,6 +1919,13 @@ export type Database = {
           montant_net: number
         }[]
       }
+      can_access_ville: {
+        Args: {
+          _user_id: string
+          _ville: Database["public"]["Enums"]["ville_region"]
+        }
+        Returns: boolean
+      }
       check_account_status: {
         Args: { p_rib: string }
         Returns: {
@@ -1837,6 +1976,17 @@ export type Database = {
           frais_pourcentage: number
         }[]
       }
+      get_user_ville: {
+        Args: { _user_id: string }
+        Returns: Database["public"]["Enums"]["ville_region"]
+      }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
       identify_clm_account: {
         Args: { p_rib: string }
         Returns: {
@@ -1847,6 +1997,14 @@ export type Database = {
           is_clm: boolean
         }[]
       }
+      is_admin_of_ville: {
+        Args: {
+          _user_id: string
+          _ville: Database["public"]["Enums"]["ville_region"]
+        }
+        Returns: boolean
+      }
+      is_super_admin: { Args: { _user_id: string }; Returns: boolean }
       preflight_validate_entry: {
         Args: {
           p_import_id: string
@@ -1898,6 +2056,7 @@ export type Database = {
         | "RIB_SUSPECT"
         | "SPLIT_IDENTITE"
         | "CLM_NON_TROUVE"
+      app_role: "super_admin" | "admin" | "user"
       entry_type: "PRINCIPAL" | "EPARGNE" | "FRAIS_CLM" | "COMMISSION"
       fee_option: "OUI" | "NON" | "DEUXIEME_FLUX"
       flux_status: "PENDING" | "COMPLETED" | "SKIPPED"
@@ -1922,6 +2081,13 @@ export type Database = {
         | "TRANSFERRED"
         | "FAILED"
         | "ARCHIVED"
+      validation_status:
+        | "pending"
+        | "in_review"
+        | "validated"
+        | "rejected"
+        | "transferred"
+      ville_region: "BRAZZAVILLE" | "POINTE_NOIRE"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -2068,6 +2234,7 @@ export const Constants = {
         "SPLIT_IDENTITE",
         "CLM_NON_TROUVE",
       ],
+      app_role: ["super_admin", "admin", "user"],
       entry_type: ["PRINCIPAL", "EPARGNE", "FRAIS_CLM", "COMMISSION"],
       fee_option: ["OUI", "NON", "DEUXIEME_FLUX"],
       flux_status: ["PENDING", "COMPLETED", "SKIPPED"],
@@ -2095,6 +2262,14 @@ export const Constants = {
         "FAILED",
         "ARCHIVED",
       ],
+      validation_status: [
+        "pending",
+        "in_review",
+        "validated",
+        "rejected",
+        "transferred",
+      ],
+      ville_region: ["BRAZZAVILLE", "POINTE_NOIRE"],
     },
   },
 } as const

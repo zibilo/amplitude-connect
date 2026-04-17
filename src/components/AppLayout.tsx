@@ -20,11 +20,16 @@ import {
   Search,
   PiggyBank,
   BarChart3,
-  Database
+  Database,
+  ShieldCheck,
+  Users,
+  LogOut
 } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -57,11 +62,17 @@ const navItems: NavItem[] = [
   { id: 'alerts', label: 'Alertes', icon: AlertTriangle, section: 'suivi' },
   { id: 'matricule', label: 'Outil Matricule', icon: Hash, section: 'outils' },
   { id: 'oracle', label: 'Oracle Amplitude', icon: Database, section: 'config' },
+  { id: 'validation', label: 'Validation Paies', icon: ShieldCheck, section: 'admin' },
+  { id: 'users', label: 'Utilisateurs', icon: Users, section: 'admin' },
 ];
 
 export function AppLayout({ children, activeTab, onTabChange }: AppLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { profile, isSuperAdmin, isAdmin, signOut } = useAuth();
+
+  const villeLabel = profile?.ville === 'POINTE_NOIRE' ? 'Pointe-Noire' : 'Brazzaville';
+  const roleLabel = isSuperAdmin ? 'Super Admin' : isAdmin ? 'Admin' : 'Utilisateur';
 
   return (
     <div className="min-h-screen flex bg-background">
@@ -78,9 +89,16 @@ export function AppLayout({ children, activeTab, onTabChange }: AppLayoutProps) 
             <Building2 className="h-6 w-6 text-sidebar-primary-foreground" />
           </div>
           {sidebarOpen && (
-            <div className="animate-fade-in">
+            <div className="animate-fade-in flex-1 min-w-0">
               <h1 className="font-bold text-sm">MUCO-AMPLITUDE</h1>
-              <p className="text-xs text-sidebar-foreground/70">Middleware Paie</p>
+              <div className="flex items-center gap-1 mt-0.5 flex-wrap">
+                <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-sidebar-foreground/30 text-sidebar-foreground/80">
+                  {villeLabel}
+                </Badge>
+                <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-sidebar-foreground/30 text-sidebar-foreground/80">
+                  {roleLabel}
+                </Badge>
+              </div>
             </div>
           )}
         </div>
@@ -182,18 +200,56 @@ export function AppLayout({ children, activeTab, onTabChange }: AppLayoutProps) 
               );
             })}
           </div>
+
+          {/* Admin (filtré par rôle) */}
+          {(isAdmin || isSuperAdmin) && (
+            <div className="space-y-1">
+              {sidebarOpen && <p className="px-3 text-xs font-semibold text-sidebar-foreground/50 uppercase">Administration</p>}
+              {navItems
+                .filter((i) => i.section === 'admin')
+                .filter((i) => (i.id === 'users' ? isSuperAdmin : isAdmin))
+                .map((item) => {
+                  const Icon = item.icon;
+                  const isActive = activeTab === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => onTabChange(item.id)}
+                      className={cn(
+                        "w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200",
+                        isActive
+                          ? "bg-sidebar-primary text-sidebar-primary-foreground"
+                          : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                      )}
+                    >
+                      <Icon className="h-5 w-5 flex-shrink-0" />
+                      {sidebarOpen && <span className="text-sm font-medium">{item.label}</span>}
+                    </button>
+                  );
+                })}
+            </div>
+          )}
         </nav>
 
-        {/* Toggle Button */}
-        <div className="p-3 border-t border-sidebar-border">
+        {/* Footer Buttons */}
+        <div className="p-3 border-t border-sidebar-border space-y-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={signOut}
+            className="w-full justify-start text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent"
+          >
+            <LogOut className="h-5 w-5" />
+            {sidebarOpen && <span className="ml-2 text-sm">Déconnexion</span>}
+          </Button>
           <Button
             variant="ghost"
             size="sm"
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="w-full text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent"
+            className="w-full justify-start text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent"
           >
             <Menu className="h-5 w-5" />
-            {sidebarOpen && <span className="ml-2">Réduire</span>}
+            {sidebarOpen && <span className="ml-2 text-sm">Réduire</span>}
           </Button>
         </div>
       </aside>
