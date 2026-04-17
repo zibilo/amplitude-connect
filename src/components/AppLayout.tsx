@@ -89,9 +89,16 @@ export function AppLayout({ children, activeTab, onTabChange }: AppLayoutProps) 
             <Building2 className="h-6 w-6 text-sidebar-primary-foreground" />
           </div>
           {sidebarOpen && (
-            <div className="animate-fade-in">
+            <div className="animate-fade-in flex-1 min-w-0">
               <h1 className="font-bold text-sm">MUCO-AMPLITUDE</h1>
-              <p className="text-xs text-sidebar-foreground/70">Middleware Paie</p>
+              <div className="flex items-center gap-1 mt-0.5 flex-wrap">
+                <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-sidebar-foreground/30 text-sidebar-foreground/80">
+                  {villeLabel}
+                </Badge>
+                <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-sidebar-foreground/30 text-sidebar-foreground/80">
+                  {roleLabel}
+                </Badge>
+              </div>
             </div>
           )}
         </div>
