@@ -69,6 +69,10 @@ const navItems: NavItem[] = [
 export function AppLayout({ children, activeTab, onTabChange }: AppLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { profile, isSuperAdmin, isAdmin, signOut } = useAuth();
+
+  const villeLabel = profile?.ville === 'POINTE_NOIRE' ? 'Pointe-Noire' : 'Brazzaville';
+  const roleLabel = isSuperAdmin ? 'Super Admin' : isAdmin ? 'Admin' : 'Utilisateur';
 
   return (
     <div className="min-h-screen flex bg-background">
