@@ -19,6 +19,8 @@ import { CaissesManager } from '@/components/CaissesManager';
 import { ImportHistory } from '@/components/ImportHistory';
 import { ReferentielSocietaireManager } from '@/components/ReferentielSocietaireManager';
 import { OracleConfigManager } from '@/components/OracleConfigManager';
+import { UserManagement } from '@/components/UserManagement';
+import { ValidationPanel } from '@/components/ValidationPanel';
 import { ImportResult, GeneratedFile, ReconciliationReport } from '@/types/payroll';
 
 const Index = () => {
@@ -126,6 +128,12 @@ const Index = () => {
 
       case 'oracle':
         return <OracleConfigManager />;
+
+      case 'validation':
+        return <ValidationPanel />;
+
+      case 'users':
+        return <UserManagement />;
 
       // Tools
       case 'matricule':

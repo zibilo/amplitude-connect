@@ -20,11 +20,16 @@ import {
   Search,
   PiggyBank,
   BarChart3,
-  Database
+  Database,
+  ShieldCheck,
+  Users,
+  LogOut
 } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -57,6 +62,8 @@ const navItems: NavItem[] = [
   { id: 'alerts', label: 'Alertes', icon: AlertTriangle, section: 'suivi' },
   { id: 'matricule', label: 'Outil Matricule', icon: Hash, section: 'outils' },
   { id: 'oracle', label: 'Oracle Amplitude', icon: Database, section: 'config' },
+  { id: 'validation', label: 'Validation Paies', icon: ShieldCheck, section: 'admin' },
+  { id: 'users', label: 'Utilisateurs', icon: Users, section: 'admin' },
 ];
 
 export function AppLayout({ children, activeTab, onTabChange }: AppLayoutProps) {
