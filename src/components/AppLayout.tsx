@@ -200,6 +200,35 @@ export function AppLayout({ children, activeTab, onTabChange }: AppLayoutProps) 
               );
             })}
           </div>
+
+          {/* Admin (filtré par rôle) */}
+          {(isAdmin || isSuperAdmin) && (
+            <div className="space-y-1">
+              {sidebarOpen && <p className="px-3 text-xs font-semibold text-sidebar-foreground/50 uppercase">Administration</p>}
+              {navItems
+                .filter((i) => i.section === 'admin')
+                .filter((i) => (i.id === 'users' ? isSuperAdmin : isAdmin))
+                .map((item) => {
+                  const Icon = item.icon;
+                  const isActive = activeTab === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => onTabChange(item.id)}
+                      className={cn(
+                        "w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200",
+                        isActive
+                          ? "bg-sidebar-primary text-sidebar-primary-foreground"
+                          : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                      )}
+                    >
+                      <Icon className="h-5 w-5 flex-shrink-0" />
+                      {sidebarOpen && <span className="text-sm font-medium">{item.label}</span>}
+                    </button>
+                  );
+                })}
+            </div>
+          )}
         </nav>
 
         {/* Toggle Button */}
