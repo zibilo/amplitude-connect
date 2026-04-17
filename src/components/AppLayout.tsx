@@ -231,16 +231,25 @@ export function AppLayout({ children, activeTab, onTabChange }: AppLayoutProps) 
           )}
         </nav>
 
-        {/* Toggle Button */}
-        <div className="p-3 border-t border-sidebar-border">
+        {/* Footer Buttons */}
+        <div className="p-3 border-t border-sidebar-border space-y-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={signOut}
+            className="w-full justify-start text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent"
+          >
+            <LogOut className="h-5 w-5" />
+            {sidebarOpen && <span className="ml-2 text-sm">Déconnexion</span>}
+          </Button>
           <Button
             variant="ghost"
             size="sm"
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="w-full text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent"
+            className="w-full justify-start text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent"
           >
             <Menu className="h-5 w-5" />
-            {sidebarOpen && <span className="ml-2">Réduire</span>}
+            {sidebarOpen && <span className="ml-2 text-sm">Réduire</span>}
           </Button>
         </div>
       </aside>
