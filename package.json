@@ -1,8 +1,13 @@
 {
   "name": "vite_react_shadcn_ts",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
+  "main": "electron/main.cjs",
+  "description": "MUCO-AMPLITUDE — Middleware paie multi-régions MUCODEC (Brazzaville & Pointe-Noire)",
+  "author": {
+    "name": "MUCODEC"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -10,7 +15,9 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "electron:dev": "ELECTRON_START_URL=http://localhost:8080 electron .",
+    "electron:build": "vite build && electron-builder --win --x64"
   },
   "dependencies": {
     "@capacitor/android": "^8.3.1",
