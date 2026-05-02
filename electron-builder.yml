@@ -1,0 +1,33 @@
+appId: app.lovable.6e6bc54db3fa4727976665eb6e2cf3da
+productName: MUCO-AMPLITUDE
+copyright: Copyright © 2026 MUCODEC
+directories:
+  output: release
+  buildResources: resources
+files:
+  - dist/**/*
+  - electron/**/*
+  - package.json
+asar: true
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+    - target: portable
+      arch:
+        - x64
+  icon: resources/icon.png
+  artifactName: MUCO-AMPLITUDE-Setup-${version}-${arch}.${ext}
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: MUCO-AMPLITUDE
+  installerIcon: resources/icon.png
+  uninstallerIcon: resources/icon.png
+  uninstallDisplayName: MUCO-AMPLITUDE Middleware
+portable:
+  artifactName: MUCO-AMPLITUDE-Portable-${version}-${arch}.${ext}
