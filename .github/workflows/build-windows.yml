@@ -1,0 +1,64 @@
+name: Build Windows Installer (Win10/11)
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  windows-build:
+    name: Build MUCO-AMPLITUDE.exe (Windows x64)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps
+
+      - name: Build Vite (dist/)
+        run: npm run build
+
+      - name: Build Windows installer (NSIS + Portable)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx electron-builder --win --x64 --publish never
+
+      - name: List artifacts
+        shell: bash
+        run: ls -la release/
+
+      - name: Upload Setup .exe
+        uses: actions/upload-artifact@v4
+        with:
+          name: MUCO-AMPLITUDE-Windows-Setup
+          path: |
+            release/*Setup*.exe
+            release/*.exe.blockmap
+            release/latest.yml
+          retention-days: 90
+
+      - name: Upload Portable .exe
+        uses: actions/upload-artifact@v4
+        with:
+          name: MUCO-AMPLITUDE-Windows-Portable
+          path: release/*Portable*.exe
+          retention-days: 90
+
+      - name: Create GitHub Release (on tag)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release/*Setup*.exe
+            release/*Portable*.exe
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
