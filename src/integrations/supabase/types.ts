@@ -89,6 +89,45 @@ export type Database = {
         }
         Relationships: []
       }
+      agency_fee_distributions: {
+        Row: {
+          code_agence: string
+          compte_produit: string
+          created_at: string
+          generated_file_id: string | null
+          id: string
+          import_id: string | null
+          montant_total_frais: number
+          nom_agence: string | null
+          nombre_operations: number
+          reference_analytique: string | null
+        }
+        Insert: {
+          code_agence: string
+          compte_produit: string
+          created_at?: string
+          generated_file_id?: string | null
+          id?: string
+          import_id?: string | null
+          montant_total_frais?: number
+          nom_agence?: string | null
+          nombre_operations?: number
+          reference_analytique?: string | null
+        }
+        Update: {
+          code_agence?: string
+          compte_produit?: string
+          created_at?: string
+          generated_file_id?: string | null
+          id?: string
+          import_id?: string | null
+          montant_total_frais?: number
+          nom_agence?: string | null
+          nombre_operations?: number
+          reference_analytique?: string | null
+        }
+        Relationships: []
+      }
       audit_logs: {
         Row: {
           action: string
@@ -155,6 +194,137 @@ export type Database = {
           is_active?: boolean | null
           nom_caisse?: string
           zone_region?: string | null
+        }
+        Relationships: []
+      }
+      cl_echeancier: {
+        Row: {
+          assurance: number
+          capital: number
+          created_at: string
+          date_paiement: string | null
+          date_prelevement: string
+          engagement_id: string
+          id: string
+          import_id: string | null
+          interets: number
+          matricule: string
+          montant_paye: number | null
+          montant_total: number
+          numero_echeance: number
+          numero_pret: string
+          statut: string
+          updated_at: string
+        }
+        Insert: {
+          assurance?: number
+          capital?: number
+          created_at?: string
+          date_paiement?: string | null
+          date_prelevement: string
+          engagement_id: string
+          id?: string
+          import_id?: string | null
+          interets?: number
+          matricule: string
+          montant_paye?: number | null
+          montant_total: number
+          numero_echeance: number
+          numero_pret: string
+          statut?: string
+          updated_at?: string
+        }
+        Update: {
+          assurance?: number
+          capital?: number
+          created_at?: string
+          date_paiement?: string | null
+          date_prelevement?: string
+          engagement_id?: string
+          id?: string
+          import_id?: string | null
+          interets?: number
+          matricule?: string
+          montant_paye?: number | null
+          montant_total?: number
+          numero_echeance?: number
+          numero_pret?: string
+          statut?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cl_echeancier_engagement_id_fkey"
+            columns: ["engagement_id"]
+            isOneToOne: false
+            referencedRelation: "cl_engagement"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cl_engagement: {
+        Row: {
+          capital_restant: number | null
+          compte_remboursement_interne: string | null
+          created_at: string
+          date_debut: string
+          date_fin: string
+          duree_mois: number
+          id: string
+          id_societaire: string | null
+          matricule: string
+          mensualite: number | null
+          montant_total: number
+          nom_client: string | null
+          numero_pret: string
+          oracle_sync_at: string | null
+          rib_remboursement: string | null
+          source: string | null
+          statut: string
+          taux_interet: number | null
+          updated_at: string
+        }
+        Insert: {
+          capital_restant?: number | null
+          compte_remboursement_interne?: string | null
+          created_at?: string
+          date_debut: string
+          date_fin: string
+          duree_mois: number
+          id?: string
+          id_societaire?: string | null
+          matricule: string
+          mensualite?: number | null
+          montant_total: number
+          nom_client?: string | null
+          numero_pret: string
+          oracle_sync_at?: string | null
+          rib_remboursement?: string | null
+          source?: string | null
+          statut?: string
+          taux_interet?: number | null
+          updated_at?: string
+        }
+        Update: {
+          capital_restant?: number | null
+          compte_remboursement_interne?: string | null
+          created_at?: string
+          date_debut?: string
+          date_fin?: string
+          duree_mois?: number
+          id?: string
+          id_societaire?: string | null
+          matricule?: string
+          mensualite?: number | null
+          montant_total?: number
+          nom_client?: string | null
+          numero_pret?: string
+          oracle_sync_at?: string | null
+          rib_remboursement?: string | null
+          source?: string | null
+          statut?: string
+          taux_interet?: number | null
+          updated_at?: string
         }
         Relationships: []
       }
@@ -383,6 +553,36 @@ export type Database = {
         }
         Relationships: []
       }
+      file_hash_registry: {
+        Row: {
+          file_hash: string
+          file_name: string
+          file_size: number | null
+          id: string
+          import_id: string | null
+          imported_at: string
+          imported_by: string | null
+        }
+        Insert: {
+          file_hash: string
+          file_name: string
+          file_size?: number | null
+          id?: string
+          import_id?: string | null
+          imported_at?: string
+          imported_by?: string | null
+        }
+        Update: {
+          file_hash?: string
+          file_name?: string
+          file_size?: number | null
+          id?: string
+          import_id?: string | null
+          imported_at?: string
+          imported_by?: string | null
+        }
+        Relationships: []
+      }
       file_staging: {
         Row: {
           created_at: string
@@ -453,6 +653,66 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      fiscal_seizures: {
+        Row: {
+          created_at: string
+          date_debut: string
+          date_fin: string | null
+          date_notification: string
+          id: string
+          matricule: string
+          montant_du: number
+          montant_preleve: number | null
+          motif: string | null
+          nom_employe: string | null
+          organisme: string
+          plafond_mensuel: number | null
+          priorite: number
+          reference_satd: string
+          rib_beneficiaire: string
+          statut: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          date_debut: string
+          date_fin?: string | null
+          date_notification: string
+          id?: string
+          matricule: string
+          montant_du: number
+          montant_preleve?: number | null
+          motif?: string | null
+          nom_employe?: string | null
+          organisme?: string
+          plafond_mensuel?: number | null
+          priorite?: number
+          reference_satd: string
+          rib_beneficiaire: string
+          statut?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          date_debut?: string
+          date_fin?: string | null
+          date_notification?: string
+          id?: string
+          matricule?: string
+          montant_du?: number
+          montant_preleve?: number | null
+          motif?: string | null
+          nom_employe?: string | null
+          organisme?: string
+          plafond_mensuel?: number | null
+          priorite?: number
+          reference_satd?: string
+          rib_beneficiaire?: string
+          statut?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       generated_entries: {
         Row: {
@@ -936,6 +1196,83 @@ export type Database = {
           },
         ]
       }
+      mutuelle_members: {
+        Row: {
+          cotisation: number
+          created_at: string
+          date_adhesion: string | null
+          id: string
+          is_active: boolean | null
+          matricule: string
+          mutuelle_id: string
+          nom_employe: string | null
+        }
+        Insert: {
+          cotisation: number
+          created_at?: string
+          date_adhesion?: string | null
+          id?: string
+          is_active?: boolean | null
+          matricule: string
+          mutuelle_id: string
+          nom_employe?: string | null
+        }
+        Update: {
+          cotisation?: number
+          created_at?: string
+          date_adhesion?: string | null
+          id?: string
+          is_active?: boolean | null
+          matricule?: string
+          mutuelle_id?: string
+          nom_employe?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mutuelle_members_mutuelle_id_fkey"
+            columns: ["mutuelle_id"]
+            isOneToOne: false
+            referencedRelation: "mutuelles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mutuelles: {
+        Row: {
+          code_mutuelle: string
+          company_id: string | null
+          compte_groupe: string
+          cotisation_defaut: number | null
+          created_at: string
+          id: string
+          is_active: boolean | null
+          nom_mutuelle: string
+          updated_at: string
+        }
+        Insert: {
+          code_mutuelle: string
+          company_id?: string | null
+          compte_groupe: string
+          cotisation_defaut?: number | null
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          nom_mutuelle: string
+          updated_at?: string
+        }
+        Update: {
+          code_mutuelle?: string
+          company_id?: string | null
+          compte_groupe?: string
+          cotisation_defaut?: number | null
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          nom_mutuelle?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       normalized_matricules: {
         Row: {
           created_at: string | null
@@ -978,6 +1315,36 @@ export type Database = {
           nom_employe?: string | null
           rib_associe?: string | null
           source_import_id?: string | null
+        }
+        Relationships: []
+      }
+      payment_priorities: {
+        Row: {
+          created_at: string
+          debt_type: string
+          description: string | null
+          id: string
+          is_active: boolean | null
+          label: string
+          priority_order: number
+        }
+        Insert: {
+          created_at?: string
+          debt_type: string
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          label: string
+          priority_order: number
+        }
+        Update: {
+          created_at?: string
+          debt_type?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          label?: string
+          priority_order?: number
         }
         Relationships: []
       }
@@ -1437,6 +1804,113 @@ export type Database = {
           },
         ]
       }
+      recovery_entries: {
+        Row: {
+          created_at: string
+          id: string
+          matricule: string
+          montant_a_debiter: number
+          motif: string | null
+          nom_employe: string | null
+          recovery_file_id: string
+          rib: string
+          selected: boolean | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          matricule: string
+          montant_a_debiter: number
+          motif?: string | null
+          nom_employe?: string | null
+          recovery_file_id: string
+          rib: string
+          selected?: boolean | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          matricule?: string
+          montant_a_debiter?: number
+          motif?: string | null
+          nom_employe?: string | null
+          recovery_file_id?: string
+          rib?: string
+          selected?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recovery_entries_recovery_file_id_fkey"
+            columns: ["recovery_file_id"]
+            isOneToOne: false
+            referencedRelation: "recovery_files"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      recovery_files: {
+        Row: {
+          company_id: string | null
+          created_at: string
+          date_erreur: string
+          entries_count: number
+          file_name: string | null
+          generated_by: string | null
+          id: string
+          justification: string
+          mode_recuperation: string
+          original_import_id: string | null
+          reference: string
+          status: string
+          total_amount: number
+          type_erreur: string
+          updated_at: string
+          validated_at: string | null
+          validated_by: string | null
+          xml_content: string | null
+        }
+        Insert: {
+          company_id?: string | null
+          created_at?: string
+          date_erreur: string
+          entries_count?: number
+          file_name?: string | null
+          generated_by?: string | null
+          id?: string
+          justification: string
+          mode_recuperation: string
+          original_import_id?: string | null
+          reference: string
+          status?: string
+          total_amount?: number
+          type_erreur: string
+          updated_at?: string
+          validated_at?: string | null
+          validated_by?: string | null
+          xml_content?: string | null
+        }
+        Update: {
+          company_id?: string | null
+          created_at?: string
+          date_erreur?: string
+          entries_count?: number
+          file_name?: string | null
+          generated_by?: string | null
+          id?: string
+          justification?: string
+          mode_recuperation?: string
+          original_import_id?: string | null
+          reference?: string
+          status?: string
+          total_amount?: number
+          type_erreur?: string
+          updated_at?: string
+          validated_at?: string | null
+          validated_by?: string | null
+          xml_content?: string | null
+        }
+        Relationships: []
+      }
       reference_corrections: {
         Row: {
           cco_correct: string | null
@@ -1587,6 +2061,48 @@ export type Database = {
           priority?: number | null
           rule_name?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      salary_advances: {
+        Row: {
+          company_id: string | null
+          created_at: string
+          date_avance: string
+          deduit: boolean | null
+          id: string
+          import_id: string | null
+          matricule: string
+          montant: number
+          motif: string | null
+          nom_employe: string | null
+          periode: string
+        }
+        Insert: {
+          company_id?: string | null
+          created_at?: string
+          date_avance: string
+          deduit?: boolean | null
+          id?: string
+          import_id?: string | null
+          matricule: string
+          montant: number
+          motif?: string | null
+          nom_employe?: string | null
+          periode: string
+        }
+        Update: {
+          company_id?: string | null
+          created_at?: string
+          date_avance?: string
+          deduit?: boolean | null
+          id?: string
+          import_id?: string | null
+          matricule?: string
+          montant?: number
+          motif?: string | null
+          nom_employe?: string | null
+          periode?: string
         }
         Relationships: []
       }
@@ -1903,6 +2419,18 @@ export type Database = {
           total_validated: number
         }[]
       }
+      calculate_employee_deductions: {
+        Args: { p_matricule: string; p_periode: string; p_salaire_brut: number }
+        Returns: {
+          avances: number
+          credit_bancaire: number
+          mutuelles: number
+          saisies_fiscales: number
+          saisies_judiciaires: number
+          salaire_net: number
+          total_retenues: number
+        }[]
+      }
       calculate_import_stats: {
         Args: { p_import_id: string }
         Returns: undefined
@@ -1936,6 +2464,15 @@ export type Database = {
           status: Database["public"]["Enums"]["account_status"]
         }[]
       }
+      check_file_duplicate: {
+        Args: { p_hash: string }
+        Returns: {
+          imported_at: string
+          is_duplicate: boolean
+          original_file_name: string
+          original_import_id: string
+        }[]
+      }
       cross_check_entry: {
         Args: { p_matricule: string; p_montant: number; p_rib: string }
         Returns: {
@@ -1964,6 +2501,17 @@ export type Database = {
           next_sequence: number
           total_amount: number
           total_fees: number
+        }[]
+      }
+      get_monthly_credit_amount: {
+        Args: { p_matricule: string; p_periode: string }
+        Returns: {
+          assurance: number
+          capital: number
+          compte_remboursement: string
+          interets: number
+          montant_total: number
+          numero_pret: string
         }[]
       }
       get_routing_rule: {
