@@ -518,7 +518,7 @@ export function ImportWizard() {
 
   const validCount = validationResults.filter(r => r.errors.length === 0 && r.ribStatus !== 'neutralized').length;
   const errorCount = validationResults.filter(r => r.errors.length > 0).length;
-  const mismatchCount = validationResults.filter(r => r.ribStatus === 'mismatch' && !r.reconciled).length;
+  const mismatchCount = validationResults.filter(r => (r.ribStatus === 'mismatch' || r.ribStatus === 'divergence') && !r.reconciled).length;
   const reconciledCount = validationResults.filter(r => r.reconciled).length;
   const neutralizedCount = validationResults.filter(r => r.ribStatus === 'neutralized').length;
   const totalValidForImport = validationResults.filter(r => r.errors.length === 0).length;
