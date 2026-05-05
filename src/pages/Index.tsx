@@ -21,6 +21,7 @@ import { ReferentielSocietaireManager } from '@/components/ReferentielSocietaire
 import { OracleConfigManager } from '@/components/OracleConfigManager';
 import { UserManagement } from '@/components/UserManagement';
 import { ValidationPanel } from '@/components/ValidationPanel';
+import { CreditDebtImportHub } from '@/components/CreditDebtImportHub';
 import { ImportResult, GeneratedFile, ReconciliationReport } from '@/types/payroll';
 
 const Index = () => {
@@ -138,7 +139,10 @@ const Index = () => {
       // Tools
       case 'matricule':
         return <MatriculeNormalizerTool />;
-      
+
+      case 'credits-debts':
+        return <CreditDebtImportHub />;
+
       default:
         return null;
     }
