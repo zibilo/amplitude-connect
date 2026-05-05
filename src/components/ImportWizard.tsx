@@ -895,7 +895,7 @@ export function ImportWizard() {
                                 <Badge className="bg-orange-100 text-orange-800 border-orange-300 text-xs">
                                   <AlertCircle className="h-3 w-3 mr-1" />Neutralisé
                                 </Badge>
-                              ) : r.ribStatus === 'mismatch' ? (
+                              ) : (r.ribStatus === 'mismatch' || r.ribStatus === 'divergence') ? (
                                 <Button size="sm" variant="outline" className="h-7 text-xs border-warning text-warning" onClick={() => { setSelectedReconciliation(r.index); setReconciliationDialogOpen(true); }}>
                                   <GitCompare className="h-3 w-3 mr-1" />Réconcilier
                                 </Button>
@@ -942,7 +942,7 @@ export function ImportWizard() {
                     <AlertTriangle className="h-4 w-4 text-warning" />
                     <AlertTitle>{mismatchCount} ligne(s) à réconcilier</AlertTitle>
                     <AlertDescription>
-                      Le système propose de remplacer les RIB du fichier Excel par les RIB certifiés du référentiel.
+                      Choisissez la source d'autorité : <strong>Base Amplitude</strong> ou <strong>Fichiers de Référence</strong>.
                     </AlertDescription>
                   </Alert>
 
@@ -951,22 +951,22 @@ export function ImportWizard() {
                       <TableHeader>
                         <TableRow>
                           <TableHead>Nom</TableHead>
-                          <TableHead>RIB Excel (erroné)</TableHead>
-                          <TableHead className="text-center">→</TableHead>
-                          <TableHead>RIB Référentiel (certifié)</TableHead>
+                          <TableHead>RIB Excel</TableHead>
+                          <TableHead>Amplitude</TableHead>
+                          <TableHead>Référence</TableHead>
                           <TableHead>Action</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {validationResults.filter(r => r.ribStatus === 'mismatch' && !r.reconciled).map(r => (
+                        {validationResults.filter(r => (r.ribStatus === 'mismatch' || r.ribStatus === 'divergence') && !r.reconciled).map(r => (
                           <TableRow key={r.index}>
                             <TableCell>{r.row.nom_complet}</TableCell>
                             <TableCell className="font-mono text-xs text-destructive">{r.row.rib}</TableCell>
-                            <TableCell className="text-center"><ArrowRight className="h-4 w-4 text-muted-foreground mx-auto" /></TableCell>
-                            <TableCell className="font-mono text-xs text-success">{r.referentielMatch?.rib}</TableCell>
+                            <TableCell className="font-mono text-xs">{r.amplitudeMatch?.rib || <span className="text-muted-foreground">—</span>}</TableCell>
+                            <TableCell className="font-mono text-xs">{r.referenceMatch?.rib || <span className="text-muted-foreground">—</span>}</TableCell>
                             <TableCell>
-                              <Button size="sm" variant="outline" onClick={() => reconcileRow(r.index)} className="h-7 text-xs">
-                                <Check className="h-3 w-3 mr-1" />Corriger
+                              <Button size="sm" variant="outline" onClick={() => { setSelectedReconciliation(r.index); setReconciliationDialogOpen(true); }} className="h-7 text-xs">
+                                <GitCompare className="h-3 w-3 mr-1" />Choisir
                               </Button>
                             </TableCell>
                           </TableRow>
@@ -975,10 +975,16 @@ export function ImportWizard() {
                     </Table>
                   </div>
 
-                  <Button onClick={reconcileAll} size="lg" className="w-full">
-                    <GitCompare className="h-4 w-4 mr-2" />
-                    Réconcilier tout ({mismatchCount} lignes)
-                  </Button>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Button onClick={() => reconcileAllFromSource('AMPLITUDE')} size="lg" variant="default">
+                      <Database className="h-4 w-4 mr-2" />
+                      Tout aligner sur Amplitude
+                    </Button>
+                    <Button onClick={() => reconcileAllFromSource('REFERENCE')} size="lg" variant="secondary">
+                      <FileCheck className="h-4 w-4 mr-2" />
+                      Tout aligner sur Référence
+                    </Button>
+                  </div>
                 </>
               ) : (
                 <>
