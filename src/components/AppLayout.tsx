@@ -23,6 +23,7 @@ import {
   Database,
   ShieldCheck,
   Users,
+  Wallet,
   LogOut
 } from 'lucide-react';
 import { useState } from 'react';
@@ -58,6 +59,7 @@ const navItems: NavItem[] = [
   { id: 'companies', label: 'Entreprises', icon: Building2, section: 'config' },
   { id: 'clm', label: 'Agences CLM', icon: Landmark, section: 'config' },
   { id: 'splitting', label: 'Règles Splitting', icon: GitBranch, section: 'config' },
+  { id: 'credits-debts', label: 'Crédits & Dettes', icon: Wallet, section: 'config' },
   { id: 'flux', label: 'Compteur Flux', icon: Calendar, section: 'suivi' },
   { id: 'alerts', label: 'Alertes', icon: AlertTriangle, section: 'suivi' },
   { id: 'matricule', label: 'Outil Matricule', icon: Hash, section: 'outils' },
