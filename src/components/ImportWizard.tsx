@@ -16,7 +16,7 @@ import { useToast } from '@/hooks/use-toast';
 import {
   Calendar, Upload, CheckCircle2, AlertTriangle, XCircle,
   ChevronRight, ChevronLeft, FileSpreadsheet, Loader2, Shield, Building2, Search,
-  GitCompare, ArrowRight, Check, CreditCard, AlertCircle
+  GitCompare, ArrowRight, Check, CreditCard, AlertCircle, Database, FileCheck
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { cn } from '@/lib/utils';
@@ -41,12 +41,15 @@ interface ValidationResult {
   index: number;
   errors: string[];
   warnings: string[];
-  ribStatus: 'valid' | 'unknown' | 'mismatch' | 'inactive' | 'neutralized';
+  ribStatus: 'valid' | 'unknown' | 'mismatch' | 'inactive' | 'neutralized' | 'divergence';
   referentielMatch?: ReferentielEntry;
   reconciled: boolean;
   reconciledRib?: string;
   neutralizedRib?: string;
   originalRib?: string;
+  amplitudeMatch?: ReferentielEntry;
+  referenceMatch?: ReferentielEntry;
+  reconciledSource?: 'AMPLITUDE' | 'REFERENCE';
 }
 
 interface CompanyProfile {
