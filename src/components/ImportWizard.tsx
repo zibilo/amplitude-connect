@@ -223,45 +223,39 @@ export function ImportWizard() {
   const validateRIBs = useCallback(async () => {
     setIsValidating(true);
 
-    // 1. Try Oracle validation first via edge function
+    // PHASE A + PHASE B en parallèle
+    // Phase A: Base Amplitude (Oracle via edge function)
+    // Phase B: Fichiers de référence (cache local certifié)
     let oracleResults: Record<string, { found: boolean; nom_oracle?: string; id_societaire?: string; account_status?: string; is_valid?: boolean; proposed_correction?: { rib: string; nom: string; id_societaire: string } | null }> = {};
     let oracleAvailable = false;
 
-    try {
-      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
-      const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+    const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+    const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+    const ribsToValidate = parsedData.map(r => ({ rib: r.rib, nom: r.nom_complet }));
 
-      const ribsToValidate = parsedData.map(r => ({ rib: r.rib, nom: r.nom_complet }));
-      
-      const resp = await fetch(
+    // Lance les 2 phases EN PARALLÈLE
+    const [phaseA, phaseB] = await Promise.allSettled([
+      // Phase A : Amplitude
+      fetch(
         `https://${projectId}.supabase.co/functions/v1/oracle-proxy?action=validate-batch`,
         {
           method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${anonKey}`,
-            'Content-Type': 'application/json',
-          },
+          headers: { 'Authorization': `Bearer ${anonKey}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({ ribs: ribsToValidate }),
         }
-      );
+      ).then(r => r.ok ? r.json() : null),
+      // Phase B : Référentiel local
+      supabase
+        .from('account_status_cache')
+        .select('rib, nom_titulaire, prenom_titulaire, id_societaire, account_status'),
+    ]);
 
-      if (resp.ok) {
-        const oracleData = await resp.json();
-        if (oracleData.data) {
-          oracleAvailable = true;
-          for (const r of oracleData.data) {
-            oracleResults[r.rib] = r;
-          }
-        }
-      }
-    } catch {
-      // Oracle not available, fall back to local cache
+    if (phaseA.status === 'fulfilled' && phaseA.value?.data) {
+      oracleAvailable = true;
+      for (const r of phaseA.value.data) oracleResults[r.rib] = r;
     }
 
-    // 2. Load local referentiel as fallback
-    const { data: refData } = await supabase
-      .from('account_status_cache')
-      .select('rib, nom_titulaire, prenom_titulaire, id_societaire, account_status');
+    const refData = phaseB.status === 'fulfilled' ? phaseB.value.data : null;
 
     const refMap = new Map<string, ReferentielEntry>();
     refData?.forEach(r => refMap.set(r.rib, r as ReferentielEntry));
@@ -281,6 +275,8 @@ export function ImportWizard() {
       let referentielMatch: ReferentielEntry | undefined;
       let neutralizedRib: string | undefined;
       const originalRib = row.rib;
+      let amplitudeMatch: ReferentielEntry | undefined;
+      let referenceMatch: ReferentielEntry | undefined;
 
       if (!row.nom_complet) errors.push('Nom manquant');
       if (!row.rib) errors.push('RIB manquant');
@@ -291,128 +287,141 @@ export function ImportWizard() {
           errors.push(`RIB longueur invalide (${row.rib.length})`);
           ribStatus = 'unknown';
         } else {
-          // Check Oracle result first
+          // ===== Phase A : résultat Amplitude (Oracle) =====
           const oracleEntry = oracleResults[row.rib];
-          
-          if (oracleAvailable && oracleEntry) {
-            if (oracleEntry.found && oracleEntry.is_valid) {
-              ribStatus = 'valid';
-              referentielMatch = {
-                rib: row.rib,
-                nom_titulaire: oracleEntry.nom_oracle || '',
-                prenom_titulaire: null,
-                id_societaire: oracleEntry.id_societaire || '',
-                account_status: oracleEntry.account_status || 'ACTIF',
-              };
-              warnings.push('✓ Validé via Oracle Amplitude');
-            } else if (oracleEntry.found && !oracleEntry.is_valid) {
-              ribStatus = 'inactive';
-              referentielMatch = {
-                rib: row.rib,
-                nom_titulaire: oracleEntry.nom_oracle || '',
-                prenom_titulaire: null,
-                id_societaire: oracleEntry.id_societaire || '',
-                account_status: oracleEntry.account_status || 'INACTIF',
-              };
-              errors.push(`Compte ${oracleEntry.account_status} (Oracle) — Impossible de traiter`);
-            } else if (!oracleEntry.found && oracleEntry.proposed_correction) {
-              ribStatus = 'mismatch';
-              referentielMatch = {
-                rib: oracleEntry.proposed_correction.rib,
-                nom_titulaire: oracleEntry.proposed_correction.nom,
-                prenom_titulaire: null,
-                id_societaire: oracleEntry.proposed_correction.id_societaire,
-                account_status: 'ACTIF',
-              };
-              warnings.push(`RIB inconnu Oracle — Correction proposée: ${oracleEntry.proposed_correction.rib}`);
-            } else {
-              // Not found in Oracle, try local cache
-              const refEntry = refMap.get(row.rib);
-              if (refEntry) {
-                if (refEntry.account_status !== 'ACTIF') {
-                  ribStatus = 'inactive';
-                  referentielMatch = refEntry;
-                  errors.push(`Compte ${refEntry.account_status} — Impossible de traiter`);
-                } else {
-                  ribStatus = 'valid';
-                  referentielMatch = refEntry;
-                }
-              } else {
-                neutralizedRib = neutralizeRib(row.rib);
-                ribStatus = 'neutralized';
-                warnings.push(`RIB absent d'Oracle et du cache local — Neutralisé: ${neutralizedRib}`);
-              }
-            }
+          if (oracleAvailable && oracleEntry?.found) {
+            amplitudeMatch = {
+              rib: row.rib,
+              nom_titulaire: oracleEntry.nom_oracle || '',
+              prenom_titulaire: null,
+              id_societaire: oracleEntry.id_societaire || '',
+              account_status: oracleEntry.account_status || 'ACTIF',
+            };
+          } else if (oracleAvailable && oracleEntry?.proposed_correction) {
+            amplitudeMatch = {
+              rib: oracleEntry.proposed_correction.rib,
+              nom_titulaire: oracleEntry.proposed_correction.nom,
+              prenom_titulaire: null,
+              id_societaire: oracleEntry.proposed_correction.id_societaire,
+              account_status: 'ACTIF',
+            };
+          }
+
+          // ===== Phase B : résultat Référentiel local =====
+          const refEntry = refMap.get(row.rib);
+          if (refEntry) {
+            referenceMatch = refEntry;
           } else {
-            // Fallback: local cache only
-            const refEntry = refMap.get(row.rib);
-            if (!refEntry) {
-              const byName = nameMap.get(row.nom_complet);
-              if (byName && byName.length > 0) {
-                referentielMatch = byName.find(b => b.account_status === 'ACTIF') || byName[0];
-                ribStatus = 'mismatch';
-                warnings.push(`RIB inconnu — RIB certifié trouvé pour "${row.nom_complet}": ${referentielMatch.rib}`);
-              } else {
-                neutralizedRib = neutralizeRib(row.rib);
-                ribStatus = 'neutralized';
-                warnings.push(`RIB absent du référentiel — Neutralisé vers compte technique: ${neutralizedRib}`);
-              }
-            } else if (refEntry.account_status !== 'ACTIF') {
-              ribStatus = 'inactive';
-              referentielMatch = refEntry;
-              errors.push(`Compte ${refEntry.account_status} — Impossible de traiter`);
-            } else {
-              ribStatus = 'valid';
-              referentielMatch = refEntry;
+            const byName = nameMap.get(row.nom_complet);
+            if (byName && byName.length > 0) {
+              referenceMatch = byName.find(b => b.account_status === 'ACTIF') || byName[0];
             }
+          }
+
+          // ===== Décision finale =====
+          const aOk = amplitudeMatch && amplitudeMatch.account_status === 'ACTIF';
+          const bOk = referenceMatch && referenceMatch.account_status === 'ACTIF';
+          const aRib = amplitudeMatch?.rib;
+          const bRib = referenceMatch?.rib;
+
+          if (aOk && bOk && aRib === row.rib && bRib === row.rib) {
+            // ✅ Conforme aux DEUX sources : succès automatique
+            ribStatus = 'valid';
+            referentielMatch = amplitudeMatch;
+            warnings.push('✓ Conforme Amplitude + Référentiel');
+          } else if (aOk && bOk && aRib !== bRib) {
+            // ⚠ Divergence entre Amplitude et Référentiel
+            ribStatus = 'divergence';
+            referentielMatch = amplitudeMatch;
+            warnings.push(`Divergence: Amplitude=${aRib} vs Référentiel=${bRib}`);
+          } else if (aOk && aRib === row.rib) {
+            ribStatus = 'valid';
+            referentielMatch = amplitudeMatch;
+            warnings.push('✓ Validé via Amplitude');
+          } else if (bOk && bRib === row.rib) {
+            ribStatus = 'valid';
+            referentielMatch = referenceMatch;
+            warnings.push('✓ Validé via Référentiel');
+          } else if (amplitudeMatch && !aOk) {
+            ribStatus = 'inactive';
+            referentielMatch = amplitudeMatch;
+            errors.push(`Compte ${amplitudeMatch.account_status} (Amplitude) — Impossible de traiter`);
+          } else if (referenceMatch && !bOk) {
+            ribStatus = 'inactive';
+            referentielMatch = referenceMatch;
+            errors.push(`Compte ${referenceMatch.account_status} — Impossible de traiter`);
+          } else if (amplitudeMatch || referenceMatch) {
+            // RIB Excel diffère, mais une des sources propose une correction
+            ribStatus = 'mismatch';
+            referentielMatch = amplitudeMatch || referenceMatch;
+          } else {
+            neutralizedRib = neutralizeRib(row.rib);
+            ribStatus = 'neutralized';
+            warnings.push(`RIB absent des 2 sources — Neutralisé: ${neutralizedRib}`);
           }
         }
       }
 
-      return { row, index, errors, warnings, ribStatus, referentielMatch, reconciled: false, neutralizedRib, originalRib };
+      return { row, index, errors, warnings, ribStatus, referentielMatch, reconciled: false, neutralizedRib, originalRib, amplitudeMatch, referenceMatch };
     });
 
     setValidationResults(results);
     setIsValidating(false);
     
     if (oracleAvailable) {
-      toast({ title: '🔗 Validation Oracle', description: 'Les RIB ont été vérifiés en temps réel depuis la base Amplitude.' });
+      toast({ title: '✅ Double vérification', description: 'Phase A (Amplitude) + Phase B (Référentiel) terminées.' });
+    } else {
+      toast({ title: '⚠ Phase A indisponible', description: 'Vérification effectuée uniquement sur le Référentiel.' });
     }
   }, [parsedData, toast]);
 
-  // Reconcile a single row
-  const reconcileRow = useCallback((index: number) => {
+  // Réconciliation par source (Amplitude ou Référentiel)
+  const reconcileRowFromSource = useCallback((index: number, source: 'AMPLITUDE' | 'REFERENCE') => {
     setValidationResults(prev => prev.map(r => {
-      if (r.index !== index || !r.referentielMatch) return r;
+      if (r.index !== index) return r;
+      const target = source === 'AMPLITUDE' ? r.amplitudeMatch : r.referenceMatch;
+      if (!target) return r;
       return {
         ...r,
         reconciled: true,
-        reconciledRib: r.referentielMatch.rib,
+        reconciledRib: target.rib,
+        reconciledSource: source,
         ribStatus: 'valid' as const,
+        referentielMatch: target,
         errors: r.errors.filter(e => !e.includes('RIB inconnu') && !e.includes('RIB absent')),
-        warnings: [...r.warnings, `RIB réconcilié: ${r.row.rib} → ${r.referentielMatch.rib}`],
-        row: { ...r.row, rib: r.referentielMatch!.rib },
+        warnings: [...r.warnings, `Réconcilié via ${source === 'AMPLITUDE' ? 'Base Amplitude' : 'Fichiers de Référence'}: ${r.row.rib} → ${target.rib}`],
+        row: { ...r.row, rib: target.rib },
       };
     }));
     setReconciliationDialogOpen(false);
-    toast({ title: 'RIB réconcilié', description: 'Les données certifiées du référentiel ont été injectées.' });
+    toast({
+      title: source === 'AMPLITUDE' ? '✓ Aligné sur Amplitude' : '✓ Aligné sur Référence',
+      description: 'La donnée est validée selon la source choisie.',
+    });
   }, [toast]);
 
-  // Reconcile ALL mismatches at once
-  const reconcileAll = useCallback(() => {
+  // Réconciliation globale par source
+  const reconcileAllFromSource = useCallback((source: 'AMPLITUDE' | 'REFERENCE') => {
     setValidationResults(prev => prev.map(r => {
-      if (r.ribStatus !== 'mismatch' || !r.referentielMatch || r.reconciled) return r;
+      if ((r.ribStatus !== 'mismatch' && r.ribStatus !== 'divergence') || r.reconciled) return r;
+      const target = source === 'AMPLITUDE' ? r.amplitudeMatch : r.referenceMatch;
+      if (!target) return r;
       return {
         ...r,
         reconciled: true,
-        reconciledRib: r.referentielMatch.rib,
+        reconciledRib: target.rib,
+        reconciledSource: source,
         ribStatus: 'valid' as const,
+        referentielMatch: target,
         errors: r.errors.filter(e => !e.includes('RIB inconnu') && !e.includes('RIB absent')),
-        warnings: [...r.warnings, `RIB réconcilié: ${r.row.rib} → ${r.referentielMatch.rib}`],
-        row: { ...r.row, rib: r.referentielMatch!.rib },
+        warnings: [...r.warnings, `Réconcilié via ${source}: ${r.row.rib} → ${target.rib}`],
+        row: { ...r.row, rib: target.rib },
       };
     }));
-    toast({ title: 'Réconciliation globale', description: 'Tous les RIB ont été corrigés avec les données certifiées.' });
+    toast({
+      title: source === 'AMPLITUDE' ? 'Réconciliation globale (Amplitude)' : 'Réconciliation globale (Référence)',
+      description: 'Toutes les divergences ont été alignées sur la source choisie.',
+    });
   }, [toast]);
 
   const doImport = useCallback(async () => {
