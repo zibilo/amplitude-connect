@@ -1132,39 +1132,57 @@ export function ImportWizard() {
 
       {/* Reconciliation Dialog */}
       <Dialog open={reconciliationDialogOpen} onOpenChange={setReconciliationDialogOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <GitCompare className="h-5 w-5 text-primary" />
-              Réconciliation RIB
+              Réconciliation — Choisir la source d'autorité
             </DialogTitle>
           </DialogHeader>
           {selectedReconItem && (
             <div className="space-y-4">
               <div className="text-sm"><strong>Salarié :</strong> {selectedReconItem.row.nom_complet}</div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-3">
                 <Card className="border-destructive/30">
-                  <CardHeader className="pb-2"><CardTitle className="text-sm text-destructive">Fichier Excel</CardTitle></CardHeader>
+                  <CardHeader className="pb-2"><CardTitle className="text-xs text-destructive">Fichier Excel (importé)</CardTitle></CardHeader>
                   <CardContent><p className="font-mono text-sm">{selectedReconItem.row.rib}</p></CardContent>
                 </Card>
-                <Card className="border-success/30">
-                  <CardHeader className="pb-2"><CardTitle className="text-sm text-success">Référentiel Certifié</CardTitle></CardHeader>
+                <Card className="border-primary/30">
+                  <CardHeader className="pb-2"><CardTitle className="text-xs text-primary flex items-center gap-1"><Database className="h-3 w-3" />Base Amplitude</CardTitle></CardHeader>
                   <CardContent>
-                    <p className="font-mono text-sm">{selectedReconItem.referentielMatch?.rib}</p>
-                    <p className="text-xs text-muted-foreground mt-1">{selectedReconItem.referentielMatch?.nom_titulaire}</p>
+                    <p className="font-mono text-sm">{selectedReconItem.amplitudeMatch?.rib || '—'}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{selectedReconItem.amplitudeMatch?.nom_titulaire || 'Indisponible'}</p>
+                  </CardContent>
+                </Card>
+                <Card className="border-secondary/40">
+                  <CardHeader className="pb-2"><CardTitle className="text-xs flex items-center gap-1"><FileCheck className="h-3 w-3" />Fichiers de Référence</CardTitle></CardHeader>
+                  <CardContent>
+                    <p className="font-mono text-sm">{selectedReconItem.referenceMatch?.rib || '—'}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{selectedReconItem.referenceMatch?.nom_titulaire || 'Indisponible'}</p>
                   </CardContent>
                 </Card>
               </div>
               <Alert>
                 <AlertTriangle className="h-4 w-4" />
-                <AlertDescription>En cliquant "Réconcilier", le RIB du fichier Excel sera remplacé par celui du référentiel certifié.</AlertDescription>
+                <AlertDescription>Le RIB importé sera aligné sur la source que vous choisissez. La donnée sera ensuite considérée comme validée.</AlertDescription>
               </Alert>
             </div>
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setReconciliationDialogOpen(false)}>Annuler</Button>
-            <Button onClick={() => selectedReconciliation !== null && reconcileRow(selectedReconciliation)}>
-              <Check className="h-4 w-4 mr-2" />Réconcilier
+            <Button
+              variant="default"
+              disabled={!selectedReconItem?.amplitudeMatch}
+              onClick={() => selectedReconciliation !== null && reconcileRowFromSource(selectedReconciliation, 'AMPLITUDE')}
+            >
+              <Database className="h-4 w-4 mr-2" />Réconciliation avec Base de Données
+            </Button>
+            <Button
+              variant="secondary"
+              disabled={!selectedReconItem?.referenceMatch}
+              onClick={() => selectedReconciliation !== null && reconcileRowFromSource(selectedReconciliation, 'REFERENCE')}
+            >
+              <FileCheck className="h-4 w-4 mr-2" />Réconciliation avec Fichiers de Référence
             </Button>
           </DialogFooter>
         </DialogContent>
