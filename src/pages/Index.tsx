@@ -22,6 +22,7 @@ import { OracleConfigManager } from '@/components/OracleConfigManager';
 import { UserManagement } from '@/components/UserManagement';
 import { ValidationPanel } from '@/components/ValidationPanel';
 import { CreditDebtImportHub } from '@/components/CreditDebtImportHub';
+import { LumiaHomeMenu } from '@/components/LumiaHomeMenu';
 import { ImportResult, GeneratedFile, ReconciliationReport } from '@/types/payroll';
 
 const Index = () => {
@@ -38,6 +39,9 @@ const Index = () => {
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard':
+        return <LumiaHomeMenu onTileSelect={setActiveTab} />;
+
+      case 'overview':
         return (
           <DashboardOverview
             importData={importData}
