@@ -1720,6 +1720,7 @@ export type Database = {
           display_name: string | null
           email: string
           id: string
+          is_validated: boolean | null
           updated_at: string
           user_id: string
           ville: Database["public"]["Enums"]["ville_region"]
@@ -1729,6 +1730,7 @@ export type Database = {
           display_name?: string | null
           email: string
           id?: string
+          is_validated?: boolean | null
           updated_at?: string
           user_id: string
           ville?: Database["public"]["Enums"]["ville_region"]
@@ -1738,6 +1740,7 @@ export type Database = {
           display_name?: string | null
           email?: string
           id?: string
+          is_validated?: boolean | null
           updated_at?: string
           user_id?: string
           ville?: Database["public"]["Enums"]["ville_region"]

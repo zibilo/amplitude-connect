@@ -14,17 +14,18 @@ interface UserRow {
   email: string;
   display_name: string | null;
   ville: Ville;
+  is_validated: boolean | null;
   roles: { role: AppRole; ville: Ville | null }[];
 }
 
 export function UserManagement() {
-  const { isSuperAdmin } = useAuth();
+  const { isSuperAdmin, isAdmin } = useAuth();
   const [users, setUsers] = useState<UserRow[]>([]);
   const [loading, setLoading] = useState(true);
 
   const load = async () => {
     setLoading(true);
-    const { data: profiles } = await supabase.from('profiles').select('user_id, email, display_name, ville');
+    const { data: profiles } = await supabase.from('profiles').select('user_id, email, display_name, ville, is_validated');
     const { data: rolesData } = await supabase.from('user_roles').select('user_id, role, ville');
     const merged: UserRow[] = (profiles || []).map((p: any) => ({
       ...p,
@@ -35,8 +36,14 @@ export function UserManagement() {
   };
 
   useEffect(() => {
-    if (isSuperAdmin) load();
-  }, [isSuperAdmin]);
+    if (isAdmin) load();
+  }, [isAdmin]);
+
+  const validateUser = async (userId: string) => {
+    const { error } = await supabase.from('profiles').update({ is_validated: true }).eq('user_id', userId);
+    if (error) toast.error('Erreur: ' + error.message);
+    else { toast.success('Compte validé'); load(); }
+  };
 
   const promoteToAdmin = async (userId: string, ville: Ville) => {
     // Remove 'user' role for that ville, add 'admin' role
@@ -60,18 +67,20 @@ export function UserManagement() {
     }
   };
 
-  if (!isSuperAdmin) {
+  if (!isAdmin) {
     return (
       <Card>
         <CardContent className="pt-6">
           <div className="flex items-center gap-2 text-destructive">
             <ShieldAlert className="h-5 w-5" />
-            <p>Accès réservé au Super Administrateur.</p>
+            <p>Accès réservé aux Administrateurs.</p>
           </div>
         </CardContent>
       </Card>
     );
   }
+
+  const pendingUsers = users.filter((u) => !u.is_validated);
 
   return (
     <div className="space-y-6">
@@ -84,6 +93,43 @@ export function UserManagement() {
           Promouvoir des utilisateurs au rang d'administrateur régional.
         </p>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Demandes en attente de validation</CardTitle>
+          <CardDescription>{pendingUsers.length} nouveau(x) compte(s) à valider</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {pendingUsers.length === 0 ? (
+            <p className="text-muted-foreground text-sm">Aucune demande en attente.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Nom</TableHead>
+                  <TableHead>Ville</TableHead>
+                  <TableHead className="text-right">Action</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {pendingUsers.map((u) => (
+                  <TableRow key={u.user_id}>
+                    <TableCell className="font-mono text-xs">{u.email}</TableCell>
+                    <TableCell>{u.display_name || '—'}</TableCell>
+                    <TableCell><Badge variant="outline">{u.ville === 'POINTE_NOIRE' ? 'Pointe-Noire' : 'Brazzaville'}</Badge></TableCell>
+                    <TableCell className="text-right">
+                      <Button size="sm" onClick={() => validateUser(u.user_id)}>
+                        <ShieldCheck className="h-4 w-4 mr-1" /> Valider
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
@@ -137,7 +183,7 @@ export function UserManagement() {
                         </div>
                       </TableCell>
                       <TableCell className="text-right">
-                        {!isSA && (
+                        {!isSA && isSuperAdmin && (
                           <div className="flex justify-end gap-2">
                             {!isAd ? (
                               <Select onValueChange={(v) => promoteToAdmin(u.user_id, v as Ville)}>
