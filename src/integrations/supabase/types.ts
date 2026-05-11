@@ -1348,6 +1348,65 @@ export type Database = {
         }
         Relationships: []
       }
+      payment_validation_requests: {
+        Row: {
+          created_at: string
+          id: string
+          import_session_id: string | null
+          neutralized_ribs: Json
+          request_type: string
+          requested_by: string
+          status: string
+          total_amount: number
+          total_count: number
+          updated_at: string
+          validated_at: string | null
+          validated_by: string | null
+          validation_notes: string | null
+          ville: Database["public"]["Enums"]["ville_region"]
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          import_session_id?: string | null
+          neutralized_ribs?: Json
+          request_type?: string
+          requested_by: string
+          status?: string
+          total_amount?: number
+          total_count?: number
+          updated_at?: string
+          validated_at?: string | null
+          validated_by?: string | null
+          validation_notes?: string | null
+          ville: Database["public"]["Enums"]["ville_region"]
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          import_session_id?: string | null
+          neutralized_ribs?: Json
+          request_type?: string
+          requested_by?: string
+          status?: string
+          total_amount?: number
+          total_count?: number
+          updated_at?: string
+          validated_at?: string | null
+          validated_by?: string | null
+          validation_notes?: string | null
+          ville?: Database["public"]["Enums"]["ville_region"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_validation_requests_import_session_id_fkey"
+            columns: ["import_session_id"]
+            isOneToOne: false
+            referencedRelation: "import_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       payroll_entries: {
         Row: {
           account_exists: boolean | null
@@ -2207,11 +2266,13 @@ export type Database = {
           plafond_total: number | null
           priority: number | null
           reference_juridique: string | null
+          regle_protection: string | null
           rib_courant_cible: string | null
           rib_epargne_cible: string | null
           rule_name: string
           rule_type: string
           total_deja_preleve: number | null
+          tranche_applicable: string | null
           updated_at: string
         }
         Insert: {
@@ -2235,11 +2296,13 @@ export type Database = {
           plafond_total?: number | null
           priority?: number | null
           reference_juridique?: string | null
+          regle_protection?: string | null
           rib_courant_cible?: string | null
           rib_epargne_cible?: string | null
           rule_name: string
           rule_type?: string
           total_deja_preleve?: number | null
+          tranche_applicable?: string | null
           updated_at?: string
         }
         Update: {
@@ -2263,11 +2326,13 @@ export type Database = {
           plafond_total?: number | null
           priority?: number | null
           reference_juridique?: string | null
+          regle_protection?: string | null
           rib_courant_cible?: string | null
           rib_epargne_cible?: string | null
           rule_name?: string
           rule_type?: string
           total_deja_preleve?: number | null
+          tranche_applicable?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -2317,6 +2382,42 @@ export type Database = {
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
           ville?: Database["public"]["Enums"]["ville_region"] | null
+        }
+        Relationships: []
+      }
+      user_validation_log: {
+        Row: {
+          action: string
+          created_at: string
+          details: Json | null
+          id: string
+          target_id: string | null
+          target_type: string
+          validator_id: string
+          validator_role: Database["public"]["Enums"]["app_role"]
+          validator_ville: Database["public"]["Enums"]["ville_region"] | null
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          details?: Json | null
+          id?: string
+          target_id?: string | null
+          target_type: string
+          validator_id: string
+          validator_role: Database["public"]["Enums"]["app_role"]
+          validator_ville?: Database["public"]["Enums"]["ville_region"] | null
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          details?: Json | null
+          id?: string
+          target_id?: string | null
+          target_type?: string
+          validator_id?: string
+          validator_role?: Database["public"]["Enums"]["app_role"]
+          validator_ville?: Database["public"]["Enums"]["ville_region"] | null
         }
         Relationships: []
       }
@@ -2397,6 +2498,10 @@ export type Database = {
         }
         Returns: string
       }
+      approve_payment_validation_request: {
+        Args: { p_notes?: string; p_request_id: string }
+        Returns: boolean
+      }
       batch_generate_entries: {
         Args: { p_generated_file_id: string; p_import_id: string }
         Returns: {
@@ -2473,6 +2578,15 @@ export type Database = {
           original_import_id: string
         }[]
       }
+      create_payment_validation_request: {
+        Args: {
+          p_import_session_id: string
+          p_neutralized_ribs: Json
+          p_total_amount: number
+          p_total_count: number
+        }
+        Returns: string
+      }
       cross_check_entry: {
         Args: { p_matricule: string; p_montant: number; p_rib: string }
         Returns: {
@@ -2514,6 +2628,20 @@ export type Database = {
           numero_pret: string
         }[]
       }
+      get_pending_validation_requests: {
+        Args: { p_ville?: Database["public"]["Enums"]["ville_region"] }
+        Returns: {
+          created_at: string
+          id: string
+          import_session_id: string
+          neutralized_ribs: Json
+          requested_by: string
+          requester_name: string
+          total_amount: number
+          total_count: number
+          ville: Database["public"]["Enums"]["ville_region"]
+        }[]
+      }
       get_routing_rule: {
         Args: { p_code_agence?: string; p_employeur_code: string }
         Returns: {
@@ -2528,13 +2656,21 @@ export type Database = {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["ville_region"]
       }
-      has_role: {
-        Args: {
-          _role: Database["public"]["Enums"]["app_role"]
-          _user_id: string
-        }
-        Returns: boolean
-      }
+      has_role:
+        | {
+            Args: {
+              _role: Database["public"]["Enums"]["app_role"]
+              _user_id: string
+            }
+            Returns: boolean
+          }
+        | {
+            Args: {
+              _role: Database["public"]["Enums"]["app_role"]
+              _user_id: string
+            }
+            Returns: boolean
+          }
       identify_clm_account: {
         Args: { p_rib: string }
         Returns: {
@@ -2550,6 +2686,10 @@ export type Database = {
           _user_id: string
           _ville: Database["public"]["Enums"]["ville_region"]
         }
+        Returns: boolean
+      }
+      is_import_session_validated: {
+        Args: { p_import_session_id: string }
         Returns: boolean
       }
       is_super_admin: { Args: { _user_id: string }; Returns: boolean }
@@ -2571,6 +2711,10 @@ export type Database = {
           correction_reason: string
           has_correction: boolean
         }[]
+      }
+      reject_payment_validation_request: {
+        Args: { p_reason: string; p_request_id: string }
+        Returns: boolean
       }
       verify_split_identity: {
         Args: {
