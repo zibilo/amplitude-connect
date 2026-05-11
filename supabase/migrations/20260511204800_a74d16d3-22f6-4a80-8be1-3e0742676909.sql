@@ -1,0 +1,1 @@
+CREATE POLICY "Admins can validate profiles" ON public.profiles FOR UPDATE USING (public.is_super_admin(auth.uid()) OR public.has_role(auth.uid(), 'admin'::app_role));
