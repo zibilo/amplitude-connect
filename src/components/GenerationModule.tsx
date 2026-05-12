@@ -14,10 +14,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   FileOutput, Download, Loader2, CheckCircle2, AlertTriangle,
   Shield, Eye, FileCode, FolderOpen, Upload, Search, XCircle,
-  ArrowRight, Zap, Server, FileUp, FileWarning, Ban
+  ArrowRight, Zap, Server, FileUp, FileWarning, Ban, Lock, RefreshCw
 } from 'lucide-react';
 import { executeTripleCheck, TripleCheckInput, TripleCheckResult } from '@/lib/engine/tripleCheckEngine';
 import { generateISO20022XML, generateAmplitudeMVTI, generateISO20022FromFlatFile, ISO20022Config, GeneratedXMLResult } from '@/lib/engine/iso20022Generator';
@@ -51,6 +52,7 @@ type GenerationStep = 'source' | 'check' | 'preview' | 'generate' | 'export';
 
 export function GenerationModule() {
   const { toast } = useToast();
+  const { profile, isAdmin, isSuperAdmin } = useAuth();
 
   // Source mode
   const [sourceMode, setSourceMode] = useState<'history' | 'flatfile'>('history');
@@ -89,6 +91,11 @@ export function GenerationModule() {
   const [ftpPath, setFtpPath] = useState('/uploads/amplitude/');
   const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
   const [rejectionDialogOpen, setRejectionDialogOpen] = useState(false);
+
+  // ─── Compte Technique 381 — validation lock ─────────────────────────────
+  const [validationRequestId, setValidationRequestId] = useState<string | null>(null);
+  const [validationStatus, setValidationStatus] = useState<'pending' | 'approved' | 'rejected' | null>(null);
+  const [checkingValidation, setCheckingValidation] = useState(false);
 
   useEffect(() => {
     fetchSessions();
@@ -256,6 +263,44 @@ export function GenerationModule() {
       setGeneratedFile(result);
       setStep('export');
 
+      // ─── Detect redirections to compte technique 38100000000 ────────────
+      const redirected = (result.rejections || []).filter(
+        (r) => r.action === 'REDIRECTED' && r.redirectedTo?.includes('38100000000')
+      );
+      setValidationRequestId(null);
+      setValidationStatus(null);
+      if (redirected.length > 0 && profile?.user_id) {
+        const ville = profile.ville;
+        const totalAmount = redirected.reduce((s, r) => s + (r.montant || 0), 0);
+        const { data: vReq, error: vErr } = await supabase
+          .from('payment_validation_requests')
+          .insert({
+            request_type: 'neutralized_rib',
+            ville,
+            requested_by: profile.user_id,
+            status: 'pending',
+            total_count: redirected.length,
+            total_amount: totalAmount,
+            neutralized_ribs: redirected.map((r) => ({
+              nom: r.nom,
+              rib_original: r.ribOriginal,
+              redirected_to: r.redirectedTo,
+              montant: r.montant,
+              reason: r.reason,
+            })),
+          })
+          .select('id, status')
+          .single();
+        if (!vErr && vReq) {
+          setValidationRequestId(vReq.id);
+          setValidationStatus(vReq.status as 'pending');
+          toast({
+            title: 'Validation requise',
+            description: `${redirected.length} virement(s) redirigé(s) vers compte technique 381 — En attente du Bon à Tirer du Chef de Service.`,
+          });
+        }
+      }
+
       await supabase.from('audit_logs').insert({
         action: 'generate',
         description: `Fichier ISO 20022 généré: ${result.fileName}`,
@@ -275,7 +320,69 @@ export function GenerationModule() {
     } finally {
       setGenerating(false);
     }
-  }, [tripleCheckResults, format, initiatingParty, debitAccount, debitAccountSansFrais, debitBIC, reference, sourceMode, flatFileResult, toast]);
+  }, [tripleCheckResults, format, initiatingParty, debitAccount, debitAccountSansFrais, debitBIC, reference, sourceMode, flatFileResult, toast, profile]);
+
+  // Poll validation status while pending
+  const refreshValidationStatus = useCallback(async () => {
+    if (!validationRequestId) return;
+    setCheckingValidation(true);
+    const { data } = await supabase
+      .from('payment_validation_requests')
+      .select('status')
+      .eq('id', validationRequestId)
+      .maybeSingle();
+    if (data) setValidationStatus(data.status as 'pending' | 'approved' | 'rejected');
+    setCheckingValidation(false);
+  }, [validationRequestId]);
+
+  useEffect(() => {
+    if (!validationRequestId || validationStatus !== 'pending') return;
+    const channel = supabase
+      .channel(`pvr-${validationRequestId}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'payment_validation_requests', filter: `id=eq.${validationRequestId}` },
+        (payload) => {
+          const next = (payload.new as { status?: string })?.status;
+          if (next) setValidationStatus(next as 'pending' | 'approved' | 'rejected');
+        }
+      )
+      .subscribe();
+    const interval = setInterval(refreshValidationStatus, 15000);
+    return () => {
+      supabase.removeChannel(channel);
+      clearInterval(interval);
+    };
+  }, [validationRequestId, validationStatus, refreshValidationStatus]);
+
+  const exportLocked = !!validationRequestId && validationStatus !== 'approved';
+  const canSelfApprove = isAdmin || isSuperAdmin;
+
+  const selfApprove = async () => {
+    if (!validationRequestId || !canSelfApprove || !profile?.user_id) return;
+    const { error } = await supabase
+      .from('payment_validation_requests')
+      .update({
+        status: 'approved',
+        validated_by: profile.user_id,
+        validated_at: new Date().toISOString(),
+        validation_notes: 'Bon à Tirer accordé depuis Génération',
+      })
+      .eq('id', validationRequestId);
+    if (error) {
+      toast({ title: 'Erreur', description: error.message, variant: 'destructive' });
+    } else {
+      setValidationStatus('approved');
+      await supabase.from('audit_logs').insert({
+        action: 'APPROVE_PAYMENT_VALIDATION',
+        description: `Bon à Tirer accordé pour redirection vers compte technique 381`,
+        entity_type: 'payment_validation_requests',
+        entity_id: validationRequestId,
+        severity: 'warning',
+      });
+      toast({ title: 'Bon à Tirer accordé', description: 'Les exports sont débloqués.' });
+    }
+  };
 
   const downloadFile = () => {
     if (!generatedFile) return;
