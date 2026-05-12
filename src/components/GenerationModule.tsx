@@ -14,10 +14,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   FileOutput, Download, Loader2, CheckCircle2, AlertTriangle,
   Shield, Eye, FileCode, FolderOpen, Upload, Search, XCircle,
-  ArrowRight, Zap, Server, FileUp, FileWarning, Ban
+  ArrowRight, Zap, Server, FileUp, FileWarning, Ban, Lock, RefreshCw
 } from 'lucide-react';
 import { executeTripleCheck, TripleCheckInput, TripleCheckResult } from '@/lib/engine/tripleCheckEngine';
 import { generateISO20022XML, generateAmplitudeMVTI, generateISO20022FromFlatFile, ISO20022Config, GeneratedXMLResult } from '@/lib/engine/iso20022Generator';
@@ -51,6 +52,7 @@ type GenerationStep = 'source' | 'check' | 'preview' | 'generate' | 'export';
 
 export function GenerationModule() {
   const { toast } = useToast();
+  const { profile, isAdmin, isSuperAdmin } = useAuth();
 
   // Source mode
   const [sourceMode, setSourceMode] = useState<'history' | 'flatfile'>('history');
@@ -89,6 +91,11 @@ export function GenerationModule() {
   const [ftpPath, setFtpPath] = useState('/uploads/amplitude/');
   const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
   const [rejectionDialogOpen, setRejectionDialogOpen] = useState(false);
+
+  // ─── Compte Technique 381 — validation lock ─────────────────────────────
+  const [validationRequestId, setValidationRequestId] = useState<string | null>(null);
+  const [validationStatus, setValidationStatus] = useState<'pending' | 'approved' | 'rejected' | null>(null);
+  const [checkingValidation, setCheckingValidation] = useState(false);
 
   useEffect(() => {
     fetchSessions();
@@ -256,6 +263,44 @@ export function GenerationModule() {
       setGeneratedFile(result);
       setStep('export');
 
+      // ─── Detect redirections to compte technique 38100000000 ────────────
+      const redirected = (result.rejections || []).filter(
+        (r) => r.action === 'REDIRECTED' && r.redirectedTo?.includes('38100000000')
+      );
+      setValidationRequestId(null);
+      setValidationStatus(null);
+      if (redirected.length > 0 && profile?.user_id) {
+        const ville = profile.ville;
+        const totalAmount = redirected.reduce((s, r) => s + (r.montant || 0), 0);
+        const { data: vReq, error: vErr } = await supabase
+          .from('payment_validation_requests')
+          .insert({
+            request_type: 'neutralized_rib',
+            ville,
+            requested_by: profile.user_id,
+            status: 'pending',
+            total_count: redirected.length,
+            total_amount: totalAmount,
+            neutralized_ribs: redirected.map((r) => ({
+              nom: r.nom,
+              rib_original: r.ribOriginal,
+              redirected_to: r.redirectedTo,
+              montant: r.montant,
+              reason: r.reason,
+            })),
+          })
+          .select('id, status')
+          .single();
+        if (!vErr && vReq) {
+          setValidationRequestId(vReq.id);
+          setValidationStatus(vReq.status as 'pending');
+          toast({
+            title: 'Validation requise',
+            description: `${redirected.length} virement(s) redirigé(s) vers compte technique 381 — En attente du Bon à Tirer du Chef de Service.`,
+          });
+        }
+      }
+
       await supabase.from('audit_logs').insert({
         action: 'generate',
         description: `Fichier ISO 20022 généré: ${result.fileName}`,
@@ -275,7 +320,69 @@ export function GenerationModule() {
     } finally {
       setGenerating(false);
     }
-  }, [tripleCheckResults, format, initiatingParty, debitAccount, debitAccountSansFrais, debitBIC, reference, sourceMode, flatFileResult, toast]);
+  }, [tripleCheckResults, format, initiatingParty, debitAccount, debitAccountSansFrais, debitBIC, reference, sourceMode, flatFileResult, toast, profile]);
+
+  // Poll validation status while pending
+  const refreshValidationStatus = useCallback(async () => {
+    if (!validationRequestId) return;
+    setCheckingValidation(true);
+    const { data } = await supabase
+      .from('payment_validation_requests')
+      .select('status')
+      .eq('id', validationRequestId)
+      .maybeSingle();
+    if (data) setValidationStatus(data.status as 'pending' | 'approved' | 'rejected');
+    setCheckingValidation(false);
+  }, [validationRequestId]);
+
+  useEffect(() => {
+    if (!validationRequestId || validationStatus !== 'pending') return;
+    const channel = supabase
+      .channel(`pvr-${validationRequestId}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'payment_validation_requests', filter: `id=eq.${validationRequestId}` },
+        (payload) => {
+          const next = (payload.new as { status?: string })?.status;
+          if (next) setValidationStatus(next as 'pending' | 'approved' | 'rejected');
+        }
+      )
+      .subscribe();
+    const interval = setInterval(refreshValidationStatus, 15000);
+    return () => {
+      supabase.removeChannel(channel);
+      clearInterval(interval);
+    };
+  }, [validationRequestId, validationStatus, refreshValidationStatus]);
+
+  const exportLocked = !!validationRequestId && validationStatus !== 'approved';
+  const canSelfApprove = isAdmin || isSuperAdmin;
+
+  const selfApprove = async () => {
+    if (!validationRequestId || !canSelfApprove || !profile?.user_id) return;
+    const { error } = await supabase
+      .from('payment_validation_requests')
+      .update({
+        status: 'approved',
+        validated_by: profile.user_id,
+        validated_at: new Date().toISOString(),
+        validation_notes: 'Bon à Tirer accordé depuis Génération',
+      })
+      .eq('id', validationRequestId);
+    if (error) {
+      toast({ title: 'Erreur', description: error.message, variant: 'destructive' });
+    } else {
+      setValidationStatus('approved');
+      await supabase.from('audit_logs').insert({
+        action: 'APPROVE_PAYMENT_VALIDATION',
+        description: `Bon à Tirer accordé pour redirection vers compte technique 381`,
+        entity_type: 'payment_validation_requests',
+        entity_id: validationRequestId,
+        severity: 'warning',
+      });
+      toast({ title: 'Bon à Tirer accordé', description: 'Les exports sont débloqués.' });
+    }
+  };
 
   const downloadFile = () => {
     if (!generatedFile) return;
@@ -914,6 +1021,40 @@ export function GenerationModule() {
       {/* ══════════════ STEP 5: EXPORT ══════════════ */}
       {step === 'export' && generatedFile && (
         <div className="space-y-4">
+          {validationRequestId && (
+            <Alert variant={validationStatus === 'approved' ? 'default' : validationStatus === 'rejected' ? 'destructive' : 'default'}
+                   className={cn(
+                     validationStatus === 'pending' && 'border-warning bg-warning/10',
+                     validationStatus === 'approved' && 'border-primary bg-primary/5',
+                   )}>
+              {validationStatus === 'approved' ? <CheckCircle2 className="h-5 w-5 text-primary" /> :
+               validationStatus === 'rejected' ? <XCircle className="h-5 w-5" /> :
+               <Lock className="h-5 w-5 text-warning" />}
+              <AlertTitle>
+                {validationStatus === 'approved' ? 'Bon à Tirer accordé — Exports débloqués'
+                  : validationStatus === 'rejected' ? 'Validation refusée par le Chef de Service'
+                  : 'Blocage de sécurité — Compte Technique 381'}
+              </AlertTitle>
+              <AlertDescription className="space-y-2">
+                <p>
+                  Ce fichier contient des virements redirigés vers le compte technique <span className="font-mono font-bold">38100000000</span>.
+                  Le dépôt vers Amplitude / WinSCP est <strong>bloqué</strong> tant que l'Administrateur ou le Chef de Service Paie n'a pas donné son <strong>« Bon à Tirer »</strong> dans l'onglet <em>Validation Paies</em>.
+                </p>
+                <div className="flex gap-2 flex-wrap">
+                  <Button size="sm" variant="outline" onClick={refreshValidationStatus} disabled={checkingValidation}>
+                    <RefreshCw className={cn('h-4 w-4 mr-2', checkingValidation && 'animate-spin')} />
+                    Rafraîchir le statut
+                  </Button>
+                  {canSelfApprove && validationStatus === 'pending' && (
+                    <Button size="sm" onClick={selfApprove}>
+                      <CheckCircle2 className="h-4 w-4 mr-2" /> Donner le Bon à Tirer
+                    </Button>
+                  )}
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
+
           <Card className="border-primary/30">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-primary">
@@ -975,8 +1116,9 @@ export function GenerationModule() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <Button onClick={downloadFile} className="w-full">
-                  <Download className="h-4 w-4 mr-2" /> Télécharger le XML
+                <Button onClick={downloadFile} className="w-full" disabled={exportLocked}>
+                  {exportLocked ? <Lock className="h-4 w-4 mr-2" /> : <Download className="h-4 w-4 mr-2" />}
+                  {exportLocked ? 'Bloqué — Bon à Tirer requis' : 'Télécharger le XML'}
                 </Button>
               </CardContent>
             </Card>
@@ -992,8 +1134,9 @@ export function GenerationModule() {
                   <Label className="text-xs">Répertoire cible</Label>
                   <Input value={exportPath} onChange={e => setExportPath(e.target.value)} className="font-mono text-xs" />
                 </div>
-                <Button onClick={saveToStaging} className="w-full" variant="secondary">
-                  <FolderOpen className="h-4 w-4 mr-2" /> Déposer en staging
+                <Button onClick={saveToStaging} className="w-full" variant="secondary" disabled={exportLocked}>
+                  {exportLocked ? <Lock className="h-4 w-4 mr-2" /> : <FolderOpen className="h-4 w-4 mr-2" />}
+                  {exportLocked ? 'Bloqué — Bon à Tirer requis' : 'Déposer en staging'}
                 </Button>
               </CardContent>
             </Card>
@@ -1019,12 +1162,13 @@ export function GenerationModule() {
                     <Input value={ftpPath} onChange={e => setFtpPath(e.target.value)} className="font-mono text-xs" />
                   </div>
                 </div>
-                <Button className="w-full" variant="outline" onClick={() => {
+                <Button className="w-full" variant="outline" disabled={exportLocked} onClick={() => {
                   const cmd = `winscp.com /command "open sftp://${ftpHost}:${ftpPort}" "put ${generatedFile.fileName} ${ftpPath}" "exit"`;
                   navigator.clipboard.writeText(cmd);
                   toast({ title: 'Commande copiée', description: 'Collez dans WinSCP ou un terminal' });
                 }}>
-                  <Server className="h-4 w-4 mr-2" /> Copier commande WinSCP
+                  {exportLocked ? <Lock className="h-4 w-4 mr-2" /> : <Server className="h-4 w-4 mr-2" />}
+                  {exportLocked ? 'Bloqué — Bon à Tirer requis' : 'Copier commande WinSCP'}
                 </Button>
               </CardContent>
             </Card>

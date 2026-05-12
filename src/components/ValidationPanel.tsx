@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { CheckCircle2, Clock, Keyboard, ShieldAlert, XCircle } from 'lucide-react';
+import { CheckCircle2, Clock, Keyboard, ShieldAlert, XCircle, Lock, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface WorkflowItem {
@@ -20,25 +20,78 @@ interface WorkflowItem {
   created_at: string;
 }
 
+interface PaymentValidationRequest {
+  id: string;
+  ville: string;
+  status: string;
+  total_count: number;
+  total_amount: number;
+  neutralized_ribs: Array<{ nom: string; rib_original: string; redirected_to: string; montant: number; reason: string }>;
+  requested_by: string;
+  validated_by: string | null;
+  validated_at: string | null;
+  created_at: string;
+}
+
 export function ValidationPanel() {
   const { isAdmin, isSuperAdmin, adminVille, profile } = useAuth();
   const [items, setItems] = useState<WorkflowItem[]>([]);
   const [selected, setSelected] = useState<WorkflowItem | null>(null);
   const [loading, setLoading] = useState(true);
+  const [paymentRequests, setPaymentRequests] = useState<PaymentValidationRequest[]>([]);
 
   const load = async () => {
     setLoading(true);
-    const { data } = await supabase
-      .from('validation_workflow')
-      .select('*')
-      .order('created_at', { ascending: false });
-    setItems((data as WorkflowItem[]) || []);
+    const [{ data: wf }, { data: pvr }] = await Promise.all([
+      supabase.from('validation_workflow').select('*').order('created_at', { ascending: false }),
+      supabase.from('payment_validation_requests').select('*').order('created_at', { ascending: false }).limit(100),
+    ]);
+    setItems((wf as WorkflowItem[]) || []);
+    setPaymentRequests((pvr as unknown as PaymentValidationRequest[]) || []);
     setLoading(false);
   };
 
   useEffect(() => {
     load();
   }, []);
+
+  const decidePaymentRequest = async (req: PaymentValidationRequest, decision: 'approved' | 'rejected') => {
+    if (!isAdmin) {
+      toast.error('Action réservée aux administrateurs');
+      return;
+    }
+    if (!isSuperAdmin && adminVille && req.ville !== adminVille) {
+      toast.error(`Vous ne pouvez valider que les flux de ${adminVille}`);
+      return;
+    }
+    let notes: string | null = null;
+    if (decision === 'rejected') {
+      notes = prompt('Motif du refus du Bon à Tirer ?');
+      if (!notes) return;
+    }
+    const { error } = await supabase
+      .from('payment_validation_requests')
+      .update({
+        status: decision,
+        validated_by: profile?.user_id,
+        validated_at: new Date().toISOString(),
+        validation_notes: notes ?? 'Bon à Tirer accordé',
+      })
+      .eq('id', req.id);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    await supabase.from('audit_logs').insert({
+      action: decision === 'approved' ? 'APPROVE_PAYMENT_VALIDATION' : 'REJECT_PAYMENT_VALIDATION',
+      description: `${decision === 'approved' ? 'Bon à Tirer accordé' : 'Bon à Tirer refusé'} pour ${req.total_count} virement(s) → compte technique 381 (${req.ville})`,
+      entity_type: 'payment_validation_requests',
+      entity_id: req.id,
+      severity: decision === 'approved' ? 'warning' : 'info',
+    });
+    toast.success(decision === 'approved' ? 'Bon à Tirer accordé' : 'Demande refusée');
+    load();
+  };
 
   const validate = useCallback(
     async (item: WorkflowItem, method: string) => {
@@ -122,6 +175,8 @@ export function ValidationPanel() {
   }
 
   const visible = isSuperAdmin ? items : items.filter((i) => i.ville === adminVille);
+  const visiblePvr = isSuperAdmin ? paymentRequests : paymentRequests.filter((p) => p.ville === adminVille);
+  const pendingPvr = visiblePvr.filter((p) => p.status === 'pending');
 
   const statusBadge = (s: string) => {
     if (s === 'validated') return <Badge className="bg-success text-success-foreground"><CheckCircle2 className="h-3 w-3 mr-1" />Validé</Badge>;
@@ -138,6 +193,77 @@ export function ValidationPanel() {
           Sélectionnez un flux puis appuyez sur <kbd className="px-2 py-1 bg-muted rounded text-xs font-mono">CTRL + V</kbd> pour valider la transmission Amplitude.
         </p>
       </div>
+
+      {/* ─── Compte Technique 381 — Bon à Tirer ─────────────────────── */}
+      <Card className={pendingPvr.length > 0 ? 'border-warning border-2' : ''}>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Lock className="h-5 w-5 text-warning" />
+            Validation Compte Technique <span className="font-mono">381</span>
+            {pendingPvr.length > 0 && (
+              <Badge variant="destructive" className="ml-2">{pendingPvr.length} en attente</Badge>
+            )}
+          </CardTitle>
+          <CardDescription>
+            Bon à Tirer requis pour les virements redirigés vers le compte technique 38100000000.
+            Tant qu'un Administrateur ou Chef de Service Paie n'a pas validé, l'opérateur ne peut
+            ni télécharger le fichier ni le déposer pour Amplitude / WinSCP.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {visiblePvr.length === 0 ? (
+            <p className="text-muted-foreground text-center py-6">Aucune demande de Bon à Tirer</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Ville</TableHead>
+                  <TableHead className="text-right">Virements</TableHead>
+                  <TableHead className="text-right">Montant total</TableHead>
+                  <TableHead>Statut</TableHead>
+                  <TableHead className="text-right">Action</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {visiblePvr.map((req) => (
+                  <TableRow key={req.id}>
+                    <TableCell className="text-xs">{new Date(req.created_at).toLocaleString('fr-FR')}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline">{req.ville === 'POINTE_NOIRE' ? 'Pointe-Noire' : 'Brazzaville'}</Badge>
+                    </TableCell>
+                    <TableCell className="text-right font-semibold">{req.total_count}</TableCell>
+                    <TableCell className="text-right font-mono">
+                      {new Intl.NumberFormat('fr-FR').format(req.total_amount)} XAF
+                    </TableCell>
+                    <TableCell>
+                      {req.status === 'approved' ? (
+                        <Badge className="bg-success text-success-foreground"><CheckCircle2 className="h-3 w-3 mr-1" />Bon à Tirer</Badge>
+                      ) : req.status === 'rejected' ? (
+                        <Badge variant="destructive"><XCircle className="h-3 w-3 mr-1" />Refusé</Badge>
+                      ) : (
+                        <Badge variant="secondary"><AlertTriangle className="h-3 w-3 mr-1" />En attente</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {req.status === 'pending' && (
+                        <div className="flex justify-end gap-2">
+                          <Button size="sm" onClick={() => decidePaymentRequest(req, 'approved')}>
+                            <CheckCircle2 className="h-4 w-4 mr-1" /> Bon à Tirer
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={() => decidePaymentRequest(req, 'rejected')}>
+                            <XCircle className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
 
       {selected && (
         <Card className="border-primary border-2 animate-pulse">
