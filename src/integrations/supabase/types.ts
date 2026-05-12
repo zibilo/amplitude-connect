@@ -1720,7 +1720,6 @@ export type Database = {
           display_name: string | null
           email: string
           id: string
-          is_validated: boolean | null
           updated_at: string
           user_id: string
           ville: Database["public"]["Enums"]["ville_region"]
@@ -1730,7 +1729,6 @@ export type Database = {
           display_name?: string | null
           email: string
           id?: string
-          is_validated?: boolean | null
           updated_at?: string
           user_id: string
           ville?: Database["public"]["Enums"]["ville_region"]
@@ -1740,7 +1738,6 @@ export type Database = {
           display_name?: string | null
           email?: string
           id?: string
-          is_validated?: boolean | null
           updated_at?: string
           user_id?: string
           ville?: Database["public"]["Enums"]["ville_region"]
@@ -2361,6 +2358,27 @@ export type Database = {
           key?: string
           updated_at?: string
           value?: Json
+        }
+        Relationships: []
+      }
+      user_requests: {
+        Row: {
+          created_at: string
+          id: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          status?: string
+          user_id?: string
         }
         Relationships: []
       }
