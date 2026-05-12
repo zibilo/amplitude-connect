@@ -1021,6 +1021,40 @@ export function GenerationModule() {
       {/* ══════════════ STEP 5: EXPORT ══════════════ */}
       {step === 'export' && generatedFile && (
         <div className="space-y-4">
+          {validationRequestId && (
+            <Alert variant={validationStatus === 'approved' ? 'default' : validationStatus === 'rejected' ? 'destructive' : 'default'}
+                   className={cn(
+                     validationStatus === 'pending' && 'border-warning bg-warning/10',
+                     validationStatus === 'approved' && 'border-primary bg-primary/5',
+                   )}>
+              {validationStatus === 'approved' ? <CheckCircle2 className="h-5 w-5 text-primary" /> :
+               validationStatus === 'rejected' ? <XCircle className="h-5 w-5" /> :
+               <Lock className="h-5 w-5 text-warning" />}
+              <AlertTitle>
+                {validationStatus === 'approved' ? 'Bon à Tirer accordé — Exports débloqués'
+                  : validationStatus === 'rejected' ? 'Validation refusée par le Chef de Service'
+                  : 'Blocage de sécurité — Compte Technique 381'}
+              </AlertTitle>
+              <AlertDescription className="space-y-2">
+                <p>
+                  Ce fichier contient des virements redirigés vers le compte technique <span className="font-mono font-bold">38100000000</span>.
+                  Le dépôt vers Amplitude / WinSCP est <strong>bloqué</strong> tant que l'Administrateur ou le Chef de Service Paie n'a pas donné son <strong>« Bon à Tirer »</strong> dans l'onglet <em>Validation Paies</em>.
+                </p>
+                <div className="flex gap-2 flex-wrap">
+                  <Button size="sm" variant="outline" onClick={refreshValidationStatus} disabled={checkingValidation}>
+                    <RefreshCw className={cn('h-4 w-4 mr-2', checkingValidation && 'animate-spin')} />
+                    Rafraîchir le statut
+                  </Button>
+                  {canSelfApprove && validationStatus === 'pending' && (
+                    <Button size="sm" onClick={selfApprove}>
+                      <CheckCircle2 className="h-4 w-4 mr-2" /> Donner le Bon à Tirer
+                    </Button>
+                  )}
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
+
           <Card className="border-primary/30">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-primary">
@@ -1082,8 +1116,9 @@ export function GenerationModule() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <Button onClick={downloadFile} className="w-full">
-                  <Download className="h-4 w-4 mr-2" /> Télécharger le XML
+                <Button onClick={downloadFile} className="w-full" disabled={exportLocked}>
+                  {exportLocked ? <Lock className="h-4 w-4 mr-2" /> : <Download className="h-4 w-4 mr-2" />}
+                  {exportLocked ? 'Bloqué — Bon à Tirer requis' : 'Télécharger le XML'}
                 </Button>
               </CardContent>
             </Card>
@@ -1099,8 +1134,9 @@ export function GenerationModule() {
                   <Label className="text-xs">Répertoire cible</Label>
                   <Input value={exportPath} onChange={e => setExportPath(e.target.value)} className="font-mono text-xs" />
                 </div>
-                <Button onClick={saveToStaging} className="w-full" variant="secondary">
-                  <FolderOpen className="h-4 w-4 mr-2" /> Déposer en staging
+                <Button onClick={saveToStaging} className="w-full" variant="secondary" disabled={exportLocked}>
+                  {exportLocked ? <Lock className="h-4 w-4 mr-2" /> : <FolderOpen className="h-4 w-4 mr-2" />}
+                  {exportLocked ? 'Bloqué — Bon à Tirer requis' : 'Déposer en staging'}
                 </Button>
               </CardContent>
             </Card>
@@ -1126,12 +1162,13 @@ export function GenerationModule() {
                     <Input value={ftpPath} onChange={e => setFtpPath(e.target.value)} className="font-mono text-xs" />
                   </div>
                 </div>
-                <Button className="w-full" variant="outline" onClick={() => {
+                <Button className="w-full" variant="outline" disabled={exportLocked} onClick={() => {
                   const cmd = `winscp.com /command "open sftp://${ftpHost}:${ftpPort}" "put ${generatedFile.fileName} ${ftpPath}" "exit"`;
                   navigator.clipboard.writeText(cmd);
                   toast({ title: 'Commande copiée', description: 'Collez dans WinSCP ou un terminal' });
                 }}>
-                  <Server className="h-4 w-4 mr-2" /> Copier commande WinSCP
+                  {exportLocked ? <Lock className="h-4 w-4 mr-2" /> : <Server className="h-4 w-4 mr-2" />}
+                  {exportLocked ? 'Bloqué — Bon à Tirer requis' : 'Copier commande WinSCP'}
                 </Button>
               </CardContent>
             </Card>
