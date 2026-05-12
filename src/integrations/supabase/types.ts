@@ -1720,6 +1720,7 @@ export type Database = {
           display_name: string | null
           email: string
           id: string
+          is_validated: boolean
           updated_at: string
           user_id: string
           ville: Database["public"]["Enums"]["ville_region"]
@@ -1729,6 +1730,7 @@ export type Database = {
           display_name?: string | null
           email: string
           id?: string
+          is_validated?: boolean
           updated_at?: string
           user_id: string
           ville?: Database["public"]["Enums"]["ville_region"]
@@ -1738,6 +1740,7 @@ export type Database = {
           display_name?: string | null
           email?: string
           id?: string
+          is_validated?: boolean
           updated_at?: string
           user_id?: string
           ville?: Database["public"]["Enums"]["ville_region"]
@@ -2709,6 +2712,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_admin_user: { Args: { _user_id: string }; Returns: boolean }
       is_import_session_validated: {
         Args: { p_import_session_id: string }
         Returns: boolean
