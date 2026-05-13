@@ -13,13 +13,16 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   Calendar, Upload, CheckCircle2, AlertTriangle, XCircle,
   ChevronRight, ChevronLeft, FileSpreadsheet, Loader2, Shield, Building2, Search,
-  GitCompare, ArrowRight, Check, CreditCard, AlertCircle, Database, FileCheck
+  GitCompare, ArrowRight, Check, CreditCard, AlertCircle, Database, FileCheck,
+  Send, RefreshCw, Trash2, Clock, Eye, FileCode, Download, FolderOpen
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { cn } from '@/lib/utils';
+import { generateISO20022FromImportData, type GeneratedXMLResult, type ImportDataRow } from '@/lib/engine/iso20022DirectGenerator';
 
 interface ParsedRow {
   periode: string;
@@ -36,6 +39,14 @@ interface ReferentielEntry {
   account_status: string;
 }
 
+// Per-line action for neutralized RIBs
+type NeutralizedAction =
+  | { type: 'idle' }
+  | { type: 'pending'; requestId: string }
+  | { type: 'approved' }
+  | { type: 'rejected'; reason?: string }
+  | { type: 'removed' };
+
 interface ValidationResult {
   row: ParsedRow;
   index: number;
@@ -50,6 +61,7 @@ interface ValidationResult {
   amplitudeMatch?: ReferentielEntry;
   referenceMatch?: ReferentielEntry;
   reconciledSource?: 'AMPLITUDE' | 'REFERENCE';
+  neutralizedAction?: NeutralizedAction;
 }
 
 interface CompanyProfile {
@@ -118,11 +130,14 @@ const STEPS = [
   { id: 5, label: 'Audit RIB', icon: Shield },
   { id: 6, label: 'Réconciliation', icon: GitCompare },
   { id: 7, label: 'Import', icon: FileSpreadsheet },
+  { id: 8, label: 'Génération XML', icon: FileCode },   // nouvelle étape
 ];
 
 export function ImportWizard() {
   const { toast } = useToast();
+  const { profile, adminVille } = useAuth();
   const [step, setStep] = useState(1);
+  const [isPollingValidation, setIsPollingValidation] = useState(false);
   const [companies, setCompanies] = useState<CompanyProfile[]>([]);
   const [selectedCompany, setSelectedCompany] = useState<string>('');
   const [feeType, setFeeType] = useState<FeeType | ''>('');
@@ -140,6 +155,10 @@ export function ImportWizard() {
   const [isValidating, setIsValidating] = useState(false);
   const [reconciliationDialogOpen, setReconciliationDialogOpen] = useState(false);
   const [selectedReconciliation, setSelectedReconciliation] = useState<number | null>(null);
+  // États pour la génération XML
+  const [generatedFile, setGeneratedFile] = useState<GeneratedXMLResult | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [xmlPreviewOpen, setXmlPreviewOpen] = useState(false);
 
   const feeConfig = feeType ? FEE_CONFIGS[feeType] : null;
 
@@ -223,9 +242,7 @@ export function ImportWizard() {
   const validateRIBs = useCallback(async () => {
     setIsValidating(true);
 
-    // PHASE A + PHASE B en parallèle
-    // Phase A: Base Amplitude (Oracle via edge function)
-    // Phase B: Fichiers de référence (cache local certifié)
+    // Phase A + Phase B en parallèle
     let oracleResults: Record<string, { found: boolean; nom_oracle?: string; id_societaire?: string; account_status?: string; is_valid?: boolean; proposed_correction?: { rib: string; nom: string; id_societaire: string } | null }> = {};
     let oracleAvailable = false;
 
@@ -233,9 +250,7 @@ export function ImportWizard() {
     const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
     const ribsToValidate = parsedData.map(r => ({ rib: r.rib, nom: r.nom_complet }));
 
-    // Lance les 2 phases EN PARALLÈLE
     const [phaseA, phaseB] = await Promise.allSettled([
-      // Phase A : Amplitude
       fetch(
         `https://${projectId}.supabase.co/functions/v1/oracle-proxy?action=validate-batch`,
         {
@@ -244,7 +259,6 @@ export function ImportWizard() {
           body: JSON.stringify({ ribs: ribsToValidate }),
         }
       ).then(r => r.ok ? r.json() : null),
-      // Phase B : Référentiel local
       supabase
         .from('account_status_cache')
         .select('rib, nom_titulaire, prenom_titulaire, id_societaire, account_status'),
@@ -256,7 +270,6 @@ export function ImportWizard() {
     }
 
     const refData = phaseB.status === 'fulfilled' ? phaseB.value.data : null;
-
     const refMap = new Map<string, ReferentielEntry>();
     refData?.forEach(r => refMap.set(r.rib, r as ReferentielEntry));
 
@@ -287,7 +300,6 @@ export function ImportWizard() {
           errors.push(`RIB longueur invalide (${row.rib.length})`);
           ribStatus = 'unknown';
         } else {
-          // ===== Phase A : résultat Amplitude (Oracle) =====
           const oracleEntry = oracleResults[row.rib];
           if (oracleAvailable && oracleEntry?.found) {
             amplitudeMatch = {
@@ -307,7 +319,6 @@ export function ImportWizard() {
             };
           }
 
-          // ===== Phase B : résultat Référentiel local =====
           const refEntry = refMap.get(row.rib);
           if (refEntry) {
             referenceMatch = refEntry;
@@ -318,19 +329,16 @@ export function ImportWizard() {
             }
           }
 
-          // ===== Décision finale =====
           const aOk = amplitudeMatch && amplitudeMatch.account_status === 'ACTIF';
           const bOk = referenceMatch && referenceMatch.account_status === 'ACTIF';
           const aRib = amplitudeMatch?.rib;
           const bRib = referenceMatch?.rib;
 
           if (aOk && bOk && aRib === row.rib && bRib === row.rib) {
-            // ✅ Conforme aux DEUX sources : succès automatique
             ribStatus = 'valid';
             referentielMatch = amplitudeMatch;
             warnings.push('✓ Conforme Amplitude + Référentiel');
           } else if (aOk && bOk && aRib !== bRib) {
-            // ⚠ Divergence entre Amplitude et Référentiel
             ribStatus = 'divergence';
             referentielMatch = amplitudeMatch;
             warnings.push(`Divergence: Amplitude=${aRib} vs Référentiel=${bRib}`);
@@ -351,7 +359,6 @@ export function ImportWizard() {
             referentielMatch = referenceMatch;
             errors.push(`Compte ${referenceMatch.account_status} — Impossible de traiter`);
           } else if (amplitudeMatch || referenceMatch) {
-            // RIB Excel diffère, mais une des sources propose une correction
             ribStatus = 'mismatch';
             referentielMatch = amplitudeMatch || referenceMatch;
           } else {
@@ -375,7 +382,6 @@ export function ImportWizard() {
     }
   }, [parsedData, toast]);
 
-  // Réconciliation par source (Amplitude ou Référentiel)
   const reconcileRowFromSource = useCallback((index: number, source: 'AMPLITUDE' | 'REFERENCE') => {
     setValidationResults(prev => prev.map(r => {
       if (r.index !== index) return r;
@@ -400,7 +406,6 @@ export function ImportWizard() {
     });
   }, [toast]);
 
-  // Réconciliation globale par source
   const reconcileAllFromSource = useCallback((source: 'AMPLITUDE' | 'REFERENCE') => {
     setValidationResults(prev => prev.map(r => {
       if ((r.ribStatus !== 'mismatch' && r.ribStatus !== 'divergence') || r.reconciled) return r;
@@ -424,18 +429,198 @@ export function ImportWizard() {
     });
   }, [toast]);
 
+  const sendValidationRequest = useCallback(async (index: number) => {
+    const r = validationResults.find(v => v.index === index);
+    if (!r || r.ribStatus !== 'neutralized') return;
+
+    setValidationResults(prev => prev.map(v =>
+      v.index === index
+        ? { ...v, neutralizedAction: { type: 'pending', requestId: '' } }
+        : v
+    ));
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Utilisateur non authentifié');
+
+      const { data: pvr, error } = await supabase
+        .from('payment_validation_requests')
+        .insert({
+          ville: (profile?.ville ?? adminVille ?? 'POINTE_NOIRE') as string,
+          status: 'pending',
+          total_count: 1,
+          total_amount: r.row.montant,
+          requested_by: user.id,
+          neutralized_ribs: [
+            {
+              index,
+              nom: r.row.nom_complet,
+              rib_original: r.originalRib || r.row.rib,
+              redirected_to: r.neutralizedRib,
+              montant: r.row.montant,
+              reason: 'RIB absent du référentiel',
+            },
+          ],
+        })
+        .select('id')
+        .single();
+
+      if (error || !pvr) throw error || new Error('Insert failed');
+
+      setValidationResults(prev => prev.map(v =>
+        v.index === index
+          ? { ...v, neutralizedAction: { type: 'pending', requestId: pvr.id } }
+          : v
+      ));
+
+      toast({
+        title: '📤 Demande envoyée',
+        description: `En attente de validation par un Admin ou Chef de Service pour "${r.row.nom_complet}".`,
+      });
+    } catch (err) {
+      setValidationResults(prev => prev.map(v =>
+        v.index === index
+          ? { ...v, neutralizedAction: { type: 'idle' } }
+          : v
+      ));
+      toast({
+        title: 'Erreur',
+        description: err instanceof Error ? err.message : "Impossible d'envoyer la demande",
+        variant: 'destructive',
+      });
+    }
+  }, [validationResults, profile, adminVille, toast]);
+
+  const removeNeutralizedLine = useCallback((index: number) => {
+    setValidationResults(prev => prev.map(v =>
+      v.index === index
+        ? { ...v, neutralizedAction: { type: 'removed' } }
+        : v
+    ));
+    toast({
+      title: '🗑 Sociétaire retiré',
+      description: "La ligne a été exclue de l'import.",
+    });
+  }, [toast]);
+
+  const pollNeutralizedStatuses = useCallback(async () => {
+    const pendingItems = validationResults.filter(
+      r => r.ribStatus === 'neutralized' && r.neutralizedAction?.type === 'pending'
+    );
+    if (pendingItems.length === 0) return;
+
+    setIsPollingValidation(true);
+    try {
+      const requestIds = pendingItems
+        .map(r => (r.neutralizedAction as { type: 'pending'; requestId: string }).requestId)
+        .filter(Boolean);
+
+      const { data } = await supabase
+        .from('payment_validation_requests')
+        .select('id, status, validation_notes')
+        .in('id', requestIds);
+
+      if (!data) return;
+
+      setValidationResults(prev => prev.map(v => {
+        if (v.ribStatus !== 'neutralized' || v.neutralizedAction?.type !== 'pending') return v;
+        const action = v.neutralizedAction as { type: 'pending'; requestId: string };
+        const found = data.find(d => d.id === action.requestId);
+        if (!found) return v;
+        if (found.status === 'approved') {
+          return { ...v, neutralizedAction: { type: 'approved' } };
+        }
+        if (found.status === 'rejected') {
+          return { ...v, neutralizedAction: { type: 'rejected', reason: found.validation_notes || undefined } };
+        }
+        return v;
+      }));
+    } finally {
+      setIsPollingValidation(false);
+    }
+  }, [validationResults]);
+
+  // Génération automatique du fichier XML après l'import
+  const autoGenerateXML = useCallback(() => {
+    if (!feeConfig || validationResults.length === 0) return;
+
+    setIsGenerating(true);
+
+    try {
+      // Appliquer la neutralisation et exclure les lignes supprimées
+      const processedResults = validationResults
+        .filter(r => r.neutralizedAction?.type !== 'removed')
+        .map(r => {
+          if (r.ribStatus === 'neutralized' && r.neutralizedRib) {
+            return { ...r, row: { ...r.row, rib: r.neutralizedRib } };
+          }
+          return r;
+        });
+
+      const validEntries = processedResults.filter(r => r.errors.length === 0);
+
+      const codeBanque = feeConfig.compteSource.substring(0, 5);
+      const periodeLabel = `SALAIRE ${mois.padStart(2, '0')}/${annee}`;
+      const reference = `VRT-${selectedCompanyName.replace(/\s+/g, '').toUpperCase()}-${annee}${mois.padStart(2, '0')}`;
+      const debitRibFull = `${codeBanque}00197${feeConfig.compteSource}${feeConfig.cleRib}`;
+
+      const importRows: ImportDataRow[] = validEntries.map(r => ({
+        nom_complet: r.row.nom_complet,
+        rib: r.row.rib,
+        montant: r.row.montant,
+        periode: r.row.periode,
+        ribStatus: r.ribStatus,
+        neutralizedRib: r.neutralizedRib,
+        reconciled: r.reconciled,
+        originalRib: r.originalRib,
+        matricule: undefined,
+        ribEpargne: undefined,
+      }));
+
+      const result = generateISO20022FromImportData(importRows, {
+        initiatingParty: selectedCompanyName,
+        debitAccount: debitRibFull,
+        cleRib: feeConfig.cleRib,
+        convention: feeConfig.convention,
+        feeInstruction: feeConfig.feeInstruction,
+        reference,
+        executionDate: new Date().toISOString().split('T')[0],
+        periodeLabel,
+        codeBanque,
+        enableSplitting: false,
+        splittingRules: [],
+      });
+
+      setGeneratedFile(result);
+
+      toast({
+        title: 'Fichier XML généré',
+        description: `${result.fileName} — ${result.totalTransactions} transactions — ${result.totalAmount.toLocaleString('fr-FR')} FCFA`,
+      });
+    } catch (err) {
+      toast({
+        title: 'Erreur de génération XML',
+        description: err instanceof Error ? err.message : 'Erreur inconnue',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [feeConfig, validationResults, mois, annee, selectedCompanyName, toast]);
+
   const doImport = useCallback(async () => {
     setIsImporting(true);
     setImportProgress(0);
 
     try {
-      // Apply neutralization to unknown RIBs before import
-      const processedResults = validationResults.map(r => {
-        if (r.ribStatus === 'neutralized' && r.neutralizedRib) {
-          return { ...r, row: { ...r.row, rib: r.neutralizedRib } };
-        }
-        return r;
-      });
+      const processedResults = validationResults
+        .filter(r => r.neutralizedAction?.type !== 'removed')
+        .map(r => {
+          if (r.ribStatus === 'neutralized' && r.neutralizedRib) {
+            return { ...r, row: { ...r.row, rib: r.neutralizedRib } };
+          }
+          return r;
+        });
 
       const validEntries = processedResults.filter(r => r.errors.length === 0);
 
@@ -485,7 +670,6 @@ export function ImportWizard() {
         setImportProgress(30 + Math.round((i / validEntries.length) * 70));
       }
 
-      // Audit log
       await supabase.from('audit_logs').insert({
         action: 'import',
         description: `Import paie (${feeConfig?.label}): ${validEntries.length} lignes pour ${selectedCompanyName} (${mois.padStart(2, '0')}/${annee})`,
@@ -505,6 +689,10 @@ export function ImportWizard() {
       setImportProgress(100);
       setImportComplete(true);
       toast({ title: 'Import terminé', description: `${validEntries.length} lignes importées pour ${selectedCompanyName}` });
+
+      // Génération automatique du XML et passage à l'étape 8
+      autoGenerateXML();
+      setStep(8);
     } catch (err: unknown) {
       toast({
         title: "Erreur d'import",
@@ -514,14 +702,22 @@ export function ImportWizard() {
     } finally {
       setIsImporting(false);
     }
-  }, [mois, annee, file, isQuinzaine, selectedCompanyName, validationResults, feeType, feeConfig, toast]);
+  }, [mois, annee, file, isQuinzaine, selectedCompanyName, validationResults, feeType, feeConfig, autoGenerateXML, toast]);
 
   const validCount = validationResults.filter(r => r.errors.length === 0 && r.ribStatus !== 'neutralized').length;
   const errorCount = validationResults.filter(r => r.errors.length > 0).length;
   const mismatchCount = validationResults.filter(r => (r.ribStatus === 'mismatch' || r.ribStatus === 'divergence') && !r.reconciled).length;
   const reconciledCount = validationResults.filter(r => r.reconciled).length;
   const neutralizedCount = validationResults.filter(r => r.ribStatus === 'neutralized').length;
-  const totalValidForImport = validationResults.filter(r => r.errors.length === 0).length;
+  const totalValidForImport = validationResults.filter(r => r.errors.length === 0 && r.neutralizedAction?.type !== 'removed').length;
+
+  const neutralizedPendingBlock = validationResults.filter(
+    r => r.ribStatus === 'neutralized' &&
+      (!r.neutralizedAction || r.neutralizedAction.type === 'idle' || r.neutralizedAction.type === 'pending' || r.neutralizedAction.type === 'rejected')
+  ).length;
+  const neutralizedApprovedCount = validationResults.filter(r => r.ribStatus === 'neutralized' && r.neutralizedAction?.type === 'approved').length;
+  const neutralizedRemovedCount = validationResults.filter(r => r.ribStatus === 'neutralized' && r.neutralizedAction?.type === 'removed').length;
+  const neutralizedResolved = neutralizedApprovedCount + neutralizedRemovedCount === neutralizedCount;
 
   const canAdvance = () => {
     switch (step) {
@@ -529,9 +725,10 @@ export function ImportWizard() {
       case 2: return !!feeType;
       case 3: return !!(mois && annee && duplicateCheckDone && (!duplicateExists || isQuinzaine));
       case 4: return parsedData.length > 0;
-      case 5: return validationResults.length > 0;
+      case 5: return validationResults.length > 0 && neutralizedResolved;
       case 6: return mismatchCount === 0 && errorCount === 0;
       case 7: return true;
+      case 8: return true;
       default: return false;
     }
   };
@@ -624,7 +821,6 @@ export function ImportWizard() {
               </CardHeader>
 
               <RadioGroup value={feeType} onValueChange={(v) => setFeeType(v as FeeType)} className="grid gap-4">
-                {/* AVEC FRAIS */}
                 <label htmlFor="fee-avec" className={cn(
                   "flex items-start gap-4 p-4 rounded-lg border-2 cursor-pointer transition-all hover:shadow-md",
                   feeType === 'AVEC_FRAIS' ? "border-primary bg-primary/5" : "border-border"
@@ -647,7 +843,6 @@ export function ImportWizard() {
                   </div>
                 </label>
 
-                {/* SANS FRAIS */}
                 <label htmlFor="fee-sans" className={cn(
                   "flex items-start gap-4 p-4 rounded-lg border-2 cursor-pointer transition-all hover:shadow-md",
                   feeType === 'SANS_FRAIS' ? "border-primary bg-primary/5" : "border-border"
@@ -670,7 +865,6 @@ export function ImportWizard() {
                   </div>
                 </label>
 
-                {/* CAS PARTICULIER */}
                 <label htmlFor="fee-cas" className={cn(
                   "flex items-start gap-4 p-4 rounded-lg border-2 cursor-pointer transition-all hover:shadow-md",
                   feeType === 'CAS_PARTICULIER' ? "border-primary bg-primary/5" : "border-border"
@@ -841,13 +1035,121 @@ export function ImportWizard() {
                   </div>
 
                   {neutralizedCount > 0 && (
-                    <Alert className="border-orange-300 bg-orange-50">
-                      <AlertCircle className="h-4 w-4 text-orange-600" />
-                      <AlertTitle className="text-orange-800">{neutralizedCount} RIB neutralisé(s)</AlertTitle>
-                      <AlertDescription className="text-orange-700">
-                        Ces bénéficiaires ne sont pas dans le référentiel. Leurs virements seront redirigés vers le compte technique <span className="font-mono font-bold">38100000000</span> au sein de leur agence d'origine.
-                      </AlertDescription>
-                    </Alert>
+                    <Card className="border-2 border-orange-400 bg-orange-50/40">
+                      <CardHeader className="pb-3">
+                        <CardTitle className="flex items-center gap-2 text-orange-800 text-base">
+                          <AlertCircle className="h-5 w-5" />
+                          {neutralizedCount} RIB absent(s) du référentiel — Action requise
+                        </CardTitle>
+                        <CardDescription className="text-orange-700">
+                          Ces sociétaires sont introuvables dans le référentiel. Vous devez, pour chaque ligne, soit
+                          <strong> envoyer la validation à l'admin</strong> (le virement sera redirigé vers <span className="font-mono">38100000000</span>)
+                          soit <strong>retirer le sociétaire</strong> de cet import.
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-3">
+                        <div className="flex gap-3 text-sm">
+                          <Badge variant="secondary" className="border-orange-400 text-orange-700">
+                            <Clock className="h-3 w-3 mr-1" />{neutralizedCount - neutralizedApprovedCount - neutralizedRemovedCount} en attente
+                          </Badge>
+                          {neutralizedApprovedCount > 0 && (
+                            <Badge className="bg-green-600 text-white"><CheckCircle2 className="h-3 w-3 mr-1" />{neutralizedApprovedCount} approuvé(s)</Badge>
+                          )}
+                          {neutralizedRemovedCount > 0 && (
+                            <Badge variant="outline" className="text-muted-foreground"><Trash2 className="h-3 w-3 mr-1" />{neutralizedRemovedCount} retiré(s)</Badge>
+                          )}
+                        </div>
+
+                        <div className="rounded-lg border border-orange-300 overflow-auto max-h-72">
+                          <Table>
+                            <TableHeader>
+                              <TableRow className="bg-orange-100">
+                                <TableHead>Bénéficiaire</TableHead>
+                                <TableHead>RIB Original</TableHead>
+                                <TableHead>RIB Technique</TableHead>
+                                <TableHead className="text-right">Montant</TableHead>
+                                <TableHead className="text-right">Action</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {validationResults.filter(r => r.ribStatus === 'neutralized').map(r => {
+                                const action = r.neutralizedAction ?? { type: 'idle' };
+                                return (
+                                  <TableRow key={r.index} className={cn(
+                                    action.type === 'approved' && 'bg-green-50',
+                                    action.type === 'removed' && 'bg-muted/50 opacity-60',
+                                    action.type === 'rejected' && 'bg-red-50',
+                                    action.type === 'pending' && 'bg-amber-50',
+                                    action.type === 'idle' && 'bg-orange-50/50',
+                                  )}>
+                                    <TableCell className="font-medium">{r.row.nom_complet}</TableCell>
+                                    <TableCell className="font-mono text-xs text-muted-foreground">{r.originalRib || r.row.rib}</TableCell>
+                                    <TableCell className="font-mono text-xs text-orange-600 font-semibold">{r.neutralizedRib}</TableCell>
+                                    <TableCell className="text-right font-mono text-sm">{r.row.montant.toLocaleString('fr-FR')} XAF</TableCell>
+                                    <TableCell className="text-right">
+                                      {action.type === 'approved' && (
+                                        <Badge className="bg-green-600 text-white text-xs"><CheckCircle2 className="h-3 w-3 mr-1" />Approuvé</Badge>
+                                      )}
+                                      {action.type === 'removed' && (
+                                        <Badge variant="outline" className="text-muted-foreground text-xs"><Trash2 className="h-3 w-3 mr-1" />Retiré</Badge>
+                                      )}
+                                      {action.type === 'rejected' && (
+                                        <div className="flex flex-col gap-1 items-end">
+                                          <Badge variant="destructive" className="text-xs"><XCircle className="h-3 w-3 mr-1" />Refusé</Badge>
+                                          <Button size="sm" variant="outline" className="h-6 text-xs border-destructive text-destructive" onClick={() => removeNeutralizedLine(r.index)}>
+                                            <Trash2 className="h-3 w-3 mr-1" />Retirer
+                                          </Button>
+                                        </div>
+                                      )}
+                                      {action.type === 'pending' && (
+                                        <Badge variant="secondary" className="text-xs border-amber-400 text-amber-700">
+                                          <Clock className="h-3 w-3 mr-1" />En attente admin
+                                        </Badge>
+                                      )}
+                                      {action.type === 'idle' && (
+                                        <div className="flex gap-1 justify-end">
+                                          <Button
+                                            size="sm"
+                                            className="h-7 text-xs bg-blue-600 hover:bg-blue-700 text-white"
+                                            onClick={() => sendValidationRequest(r.index)}
+                                          >
+                                            <Send className="h-3 w-3 mr-1" />Envoyer validation
+                                          </Button>
+                                          <Button
+                                            size="sm"
+                                            variant="outline"
+                                            className="h-7 text-xs border-destructive text-destructive hover:bg-red-50"
+                                            onClick={() => removeNeutralizedLine(r.index)}
+                                          >
+                                            <Trash2 className="h-3 w-3 mr-1" />Retirer
+                                          </Button>
+                                        </div>
+                                      )}
+                                    </TableCell>
+                                  </TableRow>
+                                );
+                              })}
+                            </TableBody>
+                          </Table>
+                        </div>
+
+                        {validationResults.some(r => r.ribStatus === 'neutralized' && r.neutralizedAction?.type === 'pending') && (
+                          <Button variant="outline" size="sm" onClick={pollNeutralizedStatuses} disabled={isPollingValidation} className="border-amber-400 text-amber-700">
+                            {isPollingValidation ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+                            Actualiser le statut
+                          </Button>
+                        )}
+
+                        {!neutralizedResolved && (
+                          <Alert className="border-orange-300 bg-orange-50 py-2">
+                            <AlertTriangle className="h-4 w-4 text-orange-600" />
+                            <AlertDescription className="text-orange-700 text-xs">
+                              Vous ne pouvez pas continuer tant que chaque ligne neutralisée n'est pas approuvée par un admin ou retirée.
+                            </AlertDescription>
+                          </Alert>
+                        )}
+                      </CardContent>
+                    </Card>
                   )}
 
                   <div className="rounded-lg border overflow-auto max-h-96">
@@ -863,11 +1165,13 @@ export function ImportWizard() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {validationResults.map(r => (
+                        {validationResults.filter(r => r.neutralizedAction?.type !== 'removed').map(r => (
                           <TableRow key={r.index} className={cn(
                             r.ribStatus === 'valid' && 'bg-success/5',
                             r.ribStatus === 'mismatch' && !r.reconciled && 'bg-warning/10',
-                            r.ribStatus === 'neutralized' && 'bg-orange-50',
+                            r.ribStatus === 'neutralized' && r.neutralizedAction?.type === 'approved' && 'bg-green-50',
+                            r.ribStatus === 'neutralized' && (!r.neutralizedAction || r.neutralizedAction.type === 'idle') && 'bg-orange-50',
+                            r.ribStatus === 'neutralized' && r.neutralizedAction?.type === 'pending' && 'bg-amber-50',
                             (r.ribStatus === 'unknown' || r.ribStatus === 'inactive') && 'bg-destructive/5',
                             r.reconciled && 'bg-primary/5'
                           )}>
@@ -892,9 +1196,15 @@ export function ImportWizard() {
                               ) : r.ribStatus === 'valid' ? (
                                 <Badge className="bg-success text-success-foreground text-xs">✓ Certifié</Badge>
                               ) : r.ribStatus === 'neutralized' ? (
-                                <Badge className="bg-orange-100 text-orange-800 border-orange-300 text-xs">
-                                  <AlertCircle className="h-3 w-3 mr-1" />Neutralisé
-                                </Badge>
+                                r.neutralizedAction?.type === 'approved' ? (
+                                  <Badge className="bg-green-600 text-white text-xs"><CheckCircle2 className="h-3 w-3 mr-1" />Approuvé</Badge>
+                                ) : r.neutralizedAction?.type === 'pending' ? (
+                                  <Badge variant="secondary" className="text-xs border-amber-400 text-amber-700"><Clock className="h-3 w-3 mr-1" />En attente</Badge>
+                                ) : (
+                                  <Badge className="bg-orange-100 text-orange-800 border-orange-300 text-xs">
+                                    <AlertCircle className="h-3 w-3 mr-1" />Action requise
+                                  </Badge>
+                                )
                               ) : (r.ribStatus === 'mismatch' || r.ribStatus === 'divergence') ? (
                                 <Button size="sm" variant="outline" className="h-7 text-xs border-warning text-warning" onClick={() => { setSelectedReconciliation(r.index); setReconciliationDialogOpen(true); }}>
                                   <GitCompare className="h-3 w-3 mr-1" />Réconcilier
@@ -1099,7 +1409,7 @@ export function ImportWizard() {
                   <AlertTitle>Import réussi</AlertTitle>
                   <AlertDescription>
                     {totalValidForImport} lignes importées pour <strong>{selectedCompanyName}</strong> ({feeConfig?.label}).
-                    Rendez-vous dans le module <strong>Génération</strong> pour lancer le Triple Check et générer le fichier XML ISO 20022.
+                    Le fichier XML ISO 20022 est généré automatiquement à l'étape suivante.
                   </AlertDescription>
                 </Alert>
               ) : (
@@ -1107,6 +1417,163 @@ export function ImportWizard() {
                   {isImporting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <FileSpreadsheet className="h-4 w-4 mr-2" />}
                   Lancer l'import
                 </Button>
+              )}
+            </div>
+          )}
+
+          {/* STEP 8: XML Generation */}
+          {step === 8 && (
+            <div className="space-y-4">
+              <CardHeader className="p-0">
+                <CardTitle className="flex items-center gap-2">
+                  <FileCode className="h-5 w-5 text-primary" />
+                  Génération XML ISO 20022
+                </CardTitle>
+                <CardDescription>Fichier de Virement de Masse pour Amplitude — pain.001.001.03</CardDescription>
+              </CardHeader>
+
+              {isGenerating && (
+                <div className="space-y-2">
+                  <Progress value={66} />
+                  <p className="text-sm text-muted-foreground text-center">Génération du fichier XML en cours...</p>
+                </div>
+              )}
+
+              {generatedFile && !isGenerating && (
+                <>
+                  <Card className="border-primary/30">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2 text-primary">
+                        <CheckCircle2 className="h-5 w-5" />
+                        Fichier XML généré avec succès
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div>
+                          <p className="text-xs text-muted-foreground">Fichier</p>
+                          <p className="font-mono text-sm bg-muted p-2 rounded mt-1 truncate">{generatedFile.fileName}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Transactions</p>
+                          <p className="font-bold text-lg mt-1">{generatedFile.totalTransactions}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Montant total</p>
+                          <p className="font-bold text-lg text-primary mt-1">{generatedFile.totalAmount.toLocaleString('fr-FR')} XAF</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Clé / Convention</p>
+                          <p className="font-mono text-sm mt-1">{feeConfig?.cleRib}{feeConfig?.convention ? ` / ${feeConfig.convention}` : ''}</p>
+                        </div>
+                      </div>
+
+                      {generatedFile.rejections.length > 0 && (
+                        <Alert className="border-warning">
+                          <AlertTriangle className="h-4 w-4 text-warning" />
+                          <AlertTitle>{generatedFile.rejections.length} compte(s) redirigé(s)</AlertTitle>
+                          <AlertDescription>
+                            RIB inconnus neutralisés vers le compte technique 38100000000
+                          </AlertDescription>
+                        </Alert>
+                      )}
+
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm" onClick={() => setXmlPreviewOpen(true)}>
+                          <Eye className="h-4 w-4 mr-2" /> Aperçu XML
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Card>
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-sm flex items-center gap-2">
+                          <Download className="h-4 w-4" /> Téléchargement direct
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <Button onClick={() => {
+                          if (!generatedFile) return;
+                          const blob = new Blob([generatedFile.content], { type: 'application/xml;charset=utf-8' });
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement('a');
+                          a.href = url;
+                          a.download = generatedFile.fileName;
+                          a.click();
+                          URL.revokeObjectURL(url);
+                        }} className="w-full">
+                          <Download className="h-4 w-4 mr-2" /> Télécharger le XML
+                        </Button>
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-sm flex items-center gap-2">
+                          <FolderOpen className="h-4 w-4" /> Dépôt en staging
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <Button onClick={async () => {
+                          if (!generatedFile) return;
+                          try {
+                            const hash = btoa(generatedFile.content.substring(0, 100));
+                            await supabase.from('file_staging').insert({
+                              file_name: generatedFile.fileName,
+                              file_type: 'xml',
+                              file_format: 'pain.001.001.03',
+                              file_content: generatedFile.content,
+                              file_hash: hash,
+                              entries_count: generatedFile.totalTransactions,
+                              total_amount: generatedFile.totalAmount,
+                              staging_path: 'C:\\Middleware\\.staging\\',
+                              target_path: 'C:\\ODTSF\\',
+                              status: 'staging',
+                            });
+                            toast({ title: 'Fichier en staging', description: 'Prêt pour transfert vers Amplitude' });
+                          } catch (err) {
+                            toast({ title: 'Erreur', description: String(err), variant: 'destructive' });
+                          }
+                        }} className="w-full" variant="secondary">
+                          <FolderOpen className="h-4 w-4 mr-2" /> Déposer en staging
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm">Structure du fichier généré</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-2 gap-3 text-sm">
+                        <div><span className="text-muted-foreground">Compte débiteur:</span> <span className="font-mono">{feeConfig?.compteSource}</span></div>
+                        <div><span className="text-muted-foreground">Clé RIB:</span> <span className="font-mono">{feeConfig?.cleRib}</span></div>
+                        <div><span className="text-muted-foreground">Convention:</span> <span className="font-mono">{feeConfig?.convention || '—'}</span></div>
+                        <div><span className="text-muted-foreground">Devise:</span> XAF</div>
+                        <div><span className="text-muted-foreground">Format:</span> pain.001.001.03</div>
+                        <div><span className="text-muted-foreground">Encodage:</span> UTF-8</div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </>
+              )}
+
+              {!generatedFile && !isGenerating && importComplete && (
+                <Button onClick={autoGenerateXML} size="lg" className="w-full">
+                  <Zap className="h-4 w-4 mr-2" />
+                  Générer le fichier XML ISO 20022
+                </Button>
+              )}
+
+              {!importComplete && (
+                <Alert>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>Import requis</AlertTitle>
+                  <AlertDescription>Veuillez d'abord compléter l'import à l'étape précédente.</AlertDescription>
+                </Alert>
               )}
             </div>
           )}
@@ -1124,7 +1591,7 @@ export function ImportWizard() {
             if (step === 5 && validationResults.length === 0) { validateRIBs(); return; }
             setStep(s => s + 1);
           }}
-          disabled={step === 7 || !canAdvance()}
+          disabled={step === 8 || !canAdvance()}
         >
           Suivant <ChevronRight className="h-4 w-4 ml-1" />
         </Button>
@@ -1185,6 +1652,21 @@ export function ImportWizard() {
               <FileCheck className="h-4 w-4 mr-2" />Réconciliation avec Fichiers de Référence
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* XML Preview Dialog */}
+      <Dialog open={xmlPreviewOpen} onOpenChange={setXmlPreviewOpen}>
+        <DialogContent className="max-w-4xl max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileCode className="h-5 w-5 text-primary" />
+              Aperçu XML — {generatedFile?.fileName}
+            </DialogTitle>
+          </DialogHeader>
+          <pre className="bg-muted p-4 rounded-lg overflow-auto max-h-[60vh] text-xs font-mono whitespace-pre-wrap">
+            {generatedFile?.content}
+          </pre>
         </DialogContent>
       </Dialog>
     </div>
