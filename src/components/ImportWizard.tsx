@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,10 +13,16 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
+import {
+  useWizardPersistence,
+  persistWizardFile,
+  loadWizardFile,
+} from '@/hooks/useWizardPersistence';
 import {
   Calendar, Upload, CheckCircle2, AlertTriangle, XCircle,
   ChevronRight, ChevronLeft, FileSpreadsheet, Loader2, Shield, Building2, Search,
-  GitCompare, ArrowRight, Check, CreditCard, AlertCircle, Database, FileCheck
+  GitCompare, ArrowRight, Check, CreditCard, AlertCircle, Database, FileCheck, RotateCcw
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { cn } from '@/lib/utils';
@@ -122,6 +128,7 @@ const STEPS = [
 
 export function ImportWizard() {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [step, setStep] = useState(1);
   const [companies, setCompanies] = useState<CompanyProfile[]>([]);
   const [selectedCompany, setSelectedCompany] = useState<string>('');
@@ -143,6 +150,61 @@ export function ImportWizard() {
 
   const feeConfig = feeType ? FEE_CONFIGS[feeType] : null;
 
+  // --- Persistance d'état (IndexedDB) ---------------------------------------
+  // L'utilisateur retrouve exactement son écran (étape, formulaire, fichier,
+  // validations) après navigation, fermeture d'onglet ou redémarrage.
+  const [companySearch, setCompanySearchState] = useState('');
+  const persistedState = useMemo(
+    () => ({
+      step,
+      selectedCompany,
+      feeType,
+      mois,
+      annee,
+      isQuinzaine,
+      duplicateCheckDone,
+      duplicateExists,
+      parsedData,
+      validationResults,
+      importComplete,
+      companySearch,
+      fileMeta: file ? { name: file.name, size: file.size, lastModified: file.lastModified } : null,
+    }),
+    [step, selectedCompany, feeType, mois, annee, isQuinzaine, duplicateCheckDone,
+     duplicateExists, parsedData, validationResults, importComplete, companySearch, file],
+  );
+
+  const { hydrated, clear: clearPersisted, scope } = useWizardPersistence(
+    user?.id ?? null,
+    persistedState,
+    (saved) => {
+      if (typeof saved.step === 'number') setStep(saved.step);
+      if (typeof saved.selectedCompany === 'string') setSelectedCompany(saved.selectedCompany);
+      if (saved.feeType === '' || saved.feeType === 'AVEC_FRAIS' || saved.feeType === 'SANS_FRAIS' || saved.feeType === 'CAS_PARTICULIER') {
+        setFeeType(saved.feeType as FeeType | '');
+      }
+      if (typeof saved.mois === 'string') setMois(saved.mois);
+      if (typeof saved.annee === 'string') setAnnee(saved.annee);
+      if (typeof saved.isQuinzaine === 'boolean') setIsQuinzaine(saved.isQuinzaine);
+      if (typeof saved.duplicateCheckDone === 'boolean') setDuplicateCheckDone(saved.duplicateCheckDone);
+      if (typeof saved.duplicateExists === 'boolean') setDuplicateExists(saved.duplicateExists);
+      if (Array.isArray(saved.parsedData)) setParsedData(saved.parsedData as ParsedRow[]);
+      if (Array.isArray(saved.validationResults)) setValidationResults(saved.validationResults as ValidationResult[]);
+      if (typeof saved.importComplete === 'boolean') setImportComplete(saved.importComplete);
+      if (typeof saved.companySearch === 'string') setCompanySearchState(saved.companySearch);
+    },
+  );
+
+  // Restaure le fichier Excel sélectionné après hydratation.
+  useEffect(() => {
+    if (!hydrated || file) return;
+    let cancelled = false;
+    loadWizardFile(scope).then((restored) => {
+      if (!cancelled && restored) setFile(restored);
+    });
+    return () => { cancelled = true; };
+  }, [hydrated, scope, file]);
+
   useEffect(() => {
     const fetchCompanies = async () => {
       const { data } = await supabase
@@ -155,7 +217,7 @@ export function ImportWizard() {
     fetchCompanies();
   }, []);
 
-  const [companySearch, setCompanySearch] = useState('');
+  const setCompanySearch = setCompanySearchState;
   const selectedCompanyName = companies.find(c => c.id === selectedCompany)?.nom_entreprise || '';
   const filteredCompanies = companies.filter(c =>
     c.nom_entreprise.toLowerCase().includes(companySearch.toLowerCase()) ||
@@ -180,6 +242,7 @@ export function ImportWizard() {
     const f = e.target.files?.[0];
     if (!f) return;
     setFile(f);
+    persistWizardFile(scope, f);
 
     try {
       const buffer = await f.arrayBuffer();
@@ -546,6 +609,14 @@ export function ImportWizard() {
         <h1 className="text-3xl font-bold text-foreground">Import de Fichier de Paie</h1>
         <p className="text-muted-foreground mt-1">Format : Période, Nom et Prénom, RIB Complet, Montant</p>
       </div>
+
+      {!hydrated && (
+        <Alert>
+          <Loader2 className="h-4 w-4 animate-spin" />
+          <AlertTitle>Restauration de la session…</AlertTitle>
+          <AlertDescription>Récupération de votre dernier état de travail.</AlertDescription>
+        </Alert>
+      )}
 
       {/* Stepper */}
       <div className="flex items-center gap-2 flex-wrap">
@@ -1115,9 +1186,35 @@ export function ImportWizard() {
 
       {/* Navigation */}
       <div className="flex justify-between">
-        <Button variant="outline" onClick={() => setStep(s => s - 1)} disabled={step === 1}>
-          <ChevronLeft className="h-4 w-4 mr-1" /> Précédent
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setStep(s => s - 1)} disabled={step === 1}>
+            <ChevronLeft className="h-4 w-4 mr-1" /> Précédent
+          </Button>
+          <Button
+            variant="ghost"
+            onClick={async () => {
+              if (!confirm('Réinitialiser le wizard ? Toutes les données saisies seront effacées.')) return;
+              await clearPersisted();
+              setStep(1);
+              setSelectedCompany('');
+              setFeeType('');
+              setMois('');
+              setAnnee(new Date().getFullYear().toString());
+              setIsQuinzaine(false);
+              setDuplicateCheckDone(false);
+              setDuplicateExists(false);
+              setFile(null);
+              setParsedData([]);
+              setValidationResults([]);
+              setImportComplete(false);
+              setCompanySearch('');
+              toast({ title: 'Wizard réinitialisé' });
+            }}
+            title="Tout effacer et recommencer"
+          >
+            <RotateCcw className="h-4 w-4 mr-1" /> Recommencer
+          </Button>
+        </div>
         <Button
           onClick={() => {
             if (step === 3 && !duplicateCheckDone) { checkDuplicateMonth(); return; }
