@@ -2006,6 +2006,93 @@ export type Database = {
         }
         Relationships: []
       }
+      remboursements_double_prelevement: {
+        Row: {
+          code_agence: string
+          code_caisse: string | null
+          contenu_ligne: string | null
+          created_at: string
+          created_by: string | null
+          fichier_genere: string | null
+          generated_at: string | null
+          generated_by: string | null
+          id: string
+          id_lot: string
+          import_entry_id: string | null
+          import_session_id: string | null
+          matricule: string
+          montant: number
+          motif: string
+          nom: string
+          notes: string | null
+          rib: string
+          sens: string
+          statut: string
+          validated_at: string | null
+        }
+        Insert: {
+          code_agence: string
+          code_caisse?: string | null
+          contenu_ligne?: string | null
+          created_at?: string
+          created_by?: string | null
+          fichier_genere?: string | null
+          generated_at?: string | null
+          generated_by?: string | null
+          id?: string
+          id_lot: string
+          import_entry_id?: string | null
+          import_session_id?: string | null
+          matricule: string
+          montant?: number
+          motif?: string
+          nom: string
+          notes?: string | null
+          rib: string
+          sens?: string
+          statut?: string
+          validated_at?: string | null
+        }
+        Update: {
+          code_agence?: string
+          code_caisse?: string | null
+          contenu_ligne?: string | null
+          created_at?: string
+          created_by?: string | null
+          fichier_genere?: string | null
+          generated_at?: string | null
+          generated_by?: string | null
+          id?: string
+          id_lot?: string
+          import_entry_id?: string | null
+          import_session_id?: string | null
+          matricule?: string
+          montant?: number
+          motif?: string
+          nom?: string
+          notes?: string | null
+          rib?: string
+          sens?: string
+          statut?: string
+          validated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "remboursements_double_prelevement_import_entry_id_fkey"
+            columns: ["import_entry_id"]
+            isOneToOne: false
+            referencedRelation: "import_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "remboursements_double_prelevement_import_session_id_fkey"
+            columns: ["import_session_id"]
+            isOneToOne: false
+            referencedRelation: "import_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rib_corrections: {
         Row: {
           auto_corrected: boolean | null
