@@ -610,6 +610,14 @@ export function ImportWizard() {
         <p className="text-muted-foreground mt-1">Format : Période, Nom et Prénom, RIB Complet, Montant</p>
       </div>
 
+      {!hydrated && (
+        <Alert>
+          <Loader2 className="h-4 w-4 animate-spin" />
+          <AlertTitle>Restauration de la session…</AlertTitle>
+          <AlertDescription>Récupération de votre dernier état de travail.</AlertDescription>
+        </Alert>
+      )}
+
       {/* Stepper */}
       <div className="flex items-center gap-2 flex-wrap">
         {STEPS.map((s, i) => {
