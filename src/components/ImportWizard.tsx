@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,10 +13,16 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
+import {
+  useWizardPersistence,
+  persistWizardFile,
+  loadWizardFile,
+} from '@/hooks/useWizardPersistence';
 import {
   Calendar, Upload, CheckCircle2, AlertTriangle, XCircle,
   ChevronRight, ChevronLeft, FileSpreadsheet, Loader2, Shield, Building2, Search,
-  GitCompare, ArrowRight, Check, CreditCard, AlertCircle, Database, FileCheck
+  GitCompare, ArrowRight, Check, CreditCard, AlertCircle, Database, FileCheck, RotateCcw
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { cn } from '@/lib/utils';
