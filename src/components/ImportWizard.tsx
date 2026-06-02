@@ -242,6 +242,7 @@ export function ImportWizard() {
     const f = e.target.files?.[0];
     if (!f) return;
     setFile(f);
+    persistWizardFile(scope, f);
 
     try {
       const buffer = await f.arrayBuffer();
