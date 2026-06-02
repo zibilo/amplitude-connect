@@ -217,7 +217,7 @@ export function ImportWizard() {
     fetchCompanies();
   }, []);
 
-  const [companySearch, setCompanySearch] = useState('');
+  const setCompanySearch = setCompanySearchState;
   const selectedCompanyName = companies.find(c => c.id === selectedCompany)?.nom_entreprise || '';
   const filteredCompanies = companies.filter(c =>
     c.nom_entreprise.toLowerCase().includes(companySearch.toLowerCase()) ||
