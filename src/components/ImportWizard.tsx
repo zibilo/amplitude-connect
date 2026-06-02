@@ -1178,9 +1178,35 @@ export function ImportWizard() {
 
       {/* Navigation */}
       <div className="flex justify-between">
-        <Button variant="outline" onClick={() => setStep(s => s - 1)} disabled={step === 1}>
-          <ChevronLeft className="h-4 w-4 mr-1" /> Précédent
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setStep(s => s - 1)} disabled={step === 1}>
+            <ChevronLeft className="h-4 w-4 mr-1" /> Précédent
+          </Button>
+          <Button
+            variant="ghost"
+            onClick={async () => {
+              if (!confirm('Réinitialiser le wizard ? Toutes les données saisies seront effacées.')) return;
+              await clearPersisted();
+              setStep(1);
+              setSelectedCompany('');
+              setFeeType('');
+              setMois('');
+              setAnnee(new Date().getFullYear().toString());
+              setIsQuinzaine(false);
+              setDuplicateCheckDone(false);
+              setDuplicateExists(false);
+              setFile(null);
+              setParsedData([]);
+              setValidationResults([]);
+              setImportComplete(false);
+              setCompanySearch('');
+              toast({ title: 'Wizard réinitialisé' });
+            }}
+            title="Tout effacer et recommencer"
+          >
+            <RotateCcw className="h-4 w-4 mr-1" /> Recommencer
+          </Button>
+        </div>
         <Button
           onClick={() => {
             if (step === 3 && !duplicateCheckDone) { checkDuplicateMonth(); return; }
