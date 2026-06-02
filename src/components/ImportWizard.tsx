@@ -128,6 +128,7 @@ const STEPS = [
 
 export function ImportWizard() {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [step, setStep] = useState(1);
   const [companies, setCompanies] = useState<CompanyProfile[]>([]);
   const [selectedCompany, setSelectedCompany] = useState<string>('');
@@ -148,6 +149,61 @@ export function ImportWizard() {
   const [selectedReconciliation, setSelectedReconciliation] = useState<number | null>(null);
 
   const feeConfig = feeType ? FEE_CONFIGS[feeType] : null;
+
+  // --- Persistance d'état (IndexedDB) ---------------------------------------
+  // L'utilisateur retrouve exactement son écran (étape, formulaire, fichier,
+  // validations) après navigation, fermeture d'onglet ou redémarrage.
+  const [companySearch, setCompanySearchState] = useState('');
+  const persistedState = useMemo(
+    () => ({
+      step,
+      selectedCompany,
+      feeType,
+      mois,
+      annee,
+      isQuinzaine,
+      duplicateCheckDone,
+      duplicateExists,
+      parsedData,
+      validationResults,
+      importComplete,
+      companySearch,
+      fileMeta: file ? { name: file.name, size: file.size, lastModified: file.lastModified } : null,
+    }),
+    [step, selectedCompany, feeType, mois, annee, isQuinzaine, duplicateCheckDone,
+     duplicateExists, parsedData, validationResults, importComplete, companySearch, file],
+  );
+
+  const { hydrated, clear: clearPersisted, scope } = useWizardPersistence(
+    user?.id ?? null,
+    persistedState,
+    (saved) => {
+      if (typeof saved.step === 'number') setStep(saved.step);
+      if (typeof saved.selectedCompany === 'string') setSelectedCompany(saved.selectedCompany);
+      if (saved.feeType === '' || saved.feeType === 'AVEC_FRAIS' || saved.feeType === 'SANS_FRAIS' || saved.feeType === 'CAS_PARTICULIER') {
+        setFeeType(saved.feeType as FeeType | '');
+      }
+      if (typeof saved.mois === 'string') setMois(saved.mois);
+      if (typeof saved.annee === 'string') setAnnee(saved.annee);
+      if (typeof saved.isQuinzaine === 'boolean') setIsQuinzaine(saved.isQuinzaine);
+      if (typeof saved.duplicateCheckDone === 'boolean') setDuplicateCheckDone(saved.duplicateCheckDone);
+      if (typeof saved.duplicateExists === 'boolean') setDuplicateExists(saved.duplicateExists);
+      if (Array.isArray(saved.parsedData)) setParsedData(saved.parsedData as ParsedRow[]);
+      if (Array.isArray(saved.validationResults)) setValidationResults(saved.validationResults as ValidationResult[]);
+      if (typeof saved.importComplete === 'boolean') setImportComplete(saved.importComplete);
+      if (typeof saved.companySearch === 'string') setCompanySearchState(saved.companySearch);
+    },
+  );
+
+  // Restaure le fichier Excel sélectionné après hydratation.
+  useEffect(() => {
+    if (!hydrated || file) return;
+    let cancelled = false;
+    loadWizardFile(scope).then((restored) => {
+      if (!cancelled && restored) setFile(restored);
+    });
+    return () => { cancelled = true; };
+  }, [hydrated, scope, file]);
 
   useEffect(() => {
     const fetchCompanies = async () => {
