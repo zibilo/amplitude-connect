@@ -840,6 +840,7 @@ export type Database = {
           file_type: string
           id: string
           import_id: string | null
+          import_session_id: string | null
           total_amount: number
           transfer_status: string | null
           transferred_at: string | null
@@ -855,6 +856,7 @@ export type Database = {
           file_type: string
           id?: string
           import_id?: string | null
+          import_session_id?: string | null
           total_amount?: number
           transfer_status?: string | null
           transferred_at?: string | null
@@ -870,6 +872,7 @@ export type Database = {
           file_type?: string
           id?: string
           import_id?: string | null
+          import_session_id?: string | null
           total_amount?: number
           transfer_status?: string | null
           transferred_at?: string | null
@@ -882,12 +885,20 @@ export type Database = {
             referencedRelation: "payroll_imports"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "generated_files_import_session_id_fkey"
+            columns: ["import_session_id"]
+            isOneToOne: false
+            referencedRelation: "import_sessions"
+            referencedColumns: ["id"]
+          },
         ]
       }
       import_entries: {
         Row: {
           cco: string
           cco_original: string | null
+          cle_rib: string | null
           code_caisse: string
           correction_details: string | null
           created_at: string | null
@@ -899,6 +910,8 @@ export type Database = {
           nom: string
           periode: string
           prenom: string | null
+          rib: string | null
+          rib_complet: string | null
           session_id: string
           status: string | null
           validation_error: string | null
@@ -907,6 +920,7 @@ export type Database = {
         Insert: {
           cco: string
           cco_original?: string | null
+          cle_rib?: string | null
           code_caisse: string
           correction_details?: string | null
           created_at?: string | null
@@ -918,6 +932,8 @@ export type Database = {
           nom: string
           periode: string
           prenom?: string | null
+          rib?: string | null
+          rib_complet?: string | null
           session_id: string
           status?: string | null
           validation_error?: string | null
@@ -926,6 +942,7 @@ export type Database = {
         Update: {
           cco?: string
           cco_original?: string | null
+          cle_rib?: string | null
           code_caisse?: string
           correction_details?: string | null
           created_at?: string | null
@@ -937,6 +954,8 @@ export type Database = {
           nom?: string
           periode?: string
           prenom?: string | null
+          rib?: string | null
+          rib_complet?: string | null
           session_id?: string
           status?: string | null
           validation_error?: string | null
