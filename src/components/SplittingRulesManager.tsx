@@ -578,7 +578,7 @@ export function SplittingRulesManager() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => fetchSocietaires(refPage, refSearch, refStatus)}
+                  onClick={() => fetchSocietaires()}
                   disabled={refLoading}
                   className="gap-2"
                 >
