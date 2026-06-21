@@ -594,7 +594,7 @@ export function SplittingRulesManager() {
                 <div className="text-center py-8 text-muted-foreground flex items-center justify-center gap-2">
                   <Loader2 className="h-4 w-4 animate-spin" /> Chargement du référentiel...
                 </div>
-              ) : societaires.length === 0 ? (
+              ) : filteredSocietaires.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">Aucun sociétaire trouvé</div>
               ) : (
                 <>
