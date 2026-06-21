@@ -107,38 +107,32 @@ export function SplittingRulesManager() {
   const [societaires, setSocietaires] = useState<Societaire[]>([]);
   const [refLoading, setRefLoading] = useState(false);
   const [refPage, setRefPage] = useState(0);
-  const [refTotal, setRefTotal] = useState(0);
   const [refSearch, setRefSearch] = useState('');
   const [refStatus, setRefStatus] = useState<string>('ALL');
 
-  const fetchSocietaires = async (page = refPage, search = refSearch, status = refStatus) => {
+  // Chargement complet en lots de 1000 (toutes les lignes) — recherche client-side
+  const fetchSocietaires = async () => {
     setRefLoading(true);
     try {
-      const from = page * PAGE_SIZE;
-      const to = from + PAGE_SIZE - 1;
-      let query = supabase
-        .from('account_status_cache')
-        .select(
-          'id, rib, id_societaire, nom_titulaire, prenom_titulaire, matricule_lie, account_status, account_type, solde_disponible, code_banque, code_guichet, numero_compte, cle_rib',
-          { count: 'exact' },
-        )
-        .order('nom_titulaire', { ascending: true, nullsFirst: false })
-        .range(from, to);
-
-      if (status !== 'ALL') {
-        query = query.eq('account_status', status as any);
+      let all: Societaire[] = [];
+      let page = 0;
+      const BATCH = 1000;
+      while (true) {
+        const from = page * BATCH;
+        const to = from + BATCH - 1;
+        const { data, error } = await supabase
+          .from('account_status_cache')
+          .select('id, rib, id_societaire, nom_titulaire, prenom_titulaire, matricule_lie, account_status, account_type, solde_disponible, code_banque, code_guichet, numero_compte, cle_rib')
+          .order('nom_titulaire', { ascending: true, nullsFirst: false })
+          .range(from, to);
+        if (error) throw error;
+        const chunk = (data as Societaire[]) || [];
+        all = all.concat(chunk);
+        if (chunk.length < BATCH) break;
+        page++;
       }
-      const term = search.trim();
-      if (term.length > 0) {
-        const safe = term.replace(/[%,()]/g, ' ');
-        query = query.or(
-          `nom_titulaire.ilike.%${safe}%,prenom_titulaire.ilike.%${safe}%,matricule_lie.ilike.%${safe}%,rib.ilike.%${safe}%,id_societaire.ilike.%${safe}%`,
-        );
-      }
-      const { data, error, count } = await query;
-      if (error) throw error;
-      setSocietaires((data as Societaire[]) || []);
-      setRefTotal(count || 0);
+      console.log(`📚 Référentiel sociétaires chargé: ${all.length}`);
+      setSocietaires(all);
     } catch (err) {
       console.error('Error fetching référentiel:', err);
       toast({ title: 'Erreur', description: 'Impossible de charger le référentiel sociétaires', variant: 'destructive' });
@@ -147,25 +141,34 @@ export function SplittingRulesManager() {
     }
   };
 
-  // Chargement initial / rechargement quand on ouvre l'onglet, change page ou filtre
+  // Chargement initial à l'ouverture de l'onglet
   useEffect(() => {
     if (activeTab !== 'societaires') return;
-    fetchSocietaires(refPage, refSearch, refStatus);
+    if (societaires.length === 0) fetchSocietaires();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, refPage, refStatus]);
+  }, [activeTab]);
 
-  // Debounce recherche
-  useEffect(() => {
-    if (activeTab !== 'societaires') return;
-    const t = setTimeout(() => {
-      setRefPage(0);
-      fetchSocietaires(0, refSearch, refStatus);
-    }, 350);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [refSearch]);
+  // Reset page quand on tape ou change le filtre
+  useEffect(() => { setRefPage(0); }, [refSearch, refStatus]);
 
+  // Filtrage + pagination client-side
+  const filteredSocietaires = (() => {
+    const term = refSearch.trim().toLowerCase();
+    return societaires.filter(s => {
+      if (refStatus !== 'ALL' && (s.account_status || '') !== refStatus) return false;
+      if (!term) return true;
+      return (
+        (s.nom_titulaire || '').toLowerCase().includes(term) ||
+        (s.prenom_titulaire || '').toLowerCase().includes(term) ||
+        (s.matricule_lie || '').toLowerCase().includes(term) ||
+        (s.rib || '').toLowerCase().includes(term) ||
+        (s.id_societaire || '').toLowerCase().includes(term)
+      );
+    });
+  })();
+  const refTotal = filteredSocietaires.length;
   const totalPages = Math.max(1, Math.ceil(refTotal / PAGE_SIZE));
+  const pagedSocietaires = filteredSocietaires.slice(refPage * PAGE_SIZE, (refPage + 1) * PAGE_SIZE);
   const statusBadge = (s: string | null) => {
     const map: Record<string, string> = {
       ACTIF: 'bg-green-500/20 text-green-700',
@@ -575,7 +578,7 @@ export function SplittingRulesManager() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => fetchSocietaires(refPage, refSearch, refStatus)}
+                  onClick={() => fetchSocietaires()}
                   disabled={refLoading}
                   className="gap-2"
                 >
@@ -591,7 +594,7 @@ export function SplittingRulesManager() {
                 <div className="text-center py-8 text-muted-foreground flex items-center justify-center gap-2">
                   <Loader2 className="h-4 w-4 animate-spin" /> Chargement du référentiel...
                 </div>
-              ) : societaires.length === 0 ? (
+              ) : filteredSocietaires.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">Aucun sociétaire trouvé</div>
               ) : (
                 <>
@@ -610,7 +613,7 @@ export function SplittingRulesManager() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {societaires.map((s) => (
+                        {pagedSocietaires.map((s) => (
                           <TableRow key={s.id} className={refLoading ? 'opacity-60' : ''}>
                             <TableCell className="font-medium">
                               {(s.nom_titulaire || '—')} {s.prenom_titulaire || ''}
