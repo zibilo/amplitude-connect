@@ -17,7 +17,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { GitBranch, Plus, Edit, Trash2, Search, CheckCircle2, XCircle, Gavel, PiggyBank, AlertTriangle } from 'lucide-react';
+import { GitBranch, Plus, Edit, Trash2, Search, CheckCircle2, XCircle, Gavel, PiggyBank, AlertTriangle, Users, ChevronLeft, ChevronRight, RefreshCw, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Progress } from '@/components/ui/progress';
@@ -84,6 +84,98 @@ export function SplittingRulesManager() {
   const [formData, setFormData] = useState({ ...defaultForm });
 
   useEffect(() => { fetchRules(); }, []);
+
+  // ============================================================
+  // Référentiel Sociétaires (account_status_cache) — pagination par lot
+  // ============================================================
+  const PAGE_SIZE = 50;
+  type Societaire = {
+    id: string;
+    rib: string | null;
+    id_societaire: string | null;
+    nom_titulaire: string | null;
+    prenom_titulaire: string | null;
+    matricule_lie: string | null;
+    account_status: string | null;
+    account_type: string | null;
+    solde_disponible: number | null;
+    code_banque: string | null;
+    code_guichet: string | null;
+    numero_compte: string | null;
+    cle_rib: string | null;
+  };
+  const [societaires, setSocietaires] = useState<Societaire[]>([]);
+  const [refLoading, setRefLoading] = useState(false);
+  const [refPage, setRefPage] = useState(0);
+  const [refTotal, setRefTotal] = useState(0);
+  const [refSearch, setRefSearch] = useState('');
+  const [refStatus, setRefStatus] = useState<string>('ALL');
+
+  const fetchSocietaires = async (page = refPage, search = refSearch, status = refStatus) => {
+    setRefLoading(true);
+    try {
+      const from = page * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
+      let query = supabase
+        .from('account_status_cache')
+        .select(
+          'id, rib, id_societaire, nom_titulaire, prenom_titulaire, matricule_lie, account_status, account_type, solde_disponible, code_banque, code_guichet, numero_compte, cle_rib',
+          { count: 'exact' },
+        )
+        .order('nom_titulaire', { ascending: true, nullsFirst: false })
+        .range(from, to);
+
+      if (status !== 'ALL') {
+        query = query.eq('account_status', status as any);
+      }
+      const term = search.trim();
+      if (term.length > 0) {
+        const safe = term.replace(/[%,()]/g, ' ');
+        query = query.or(
+          `nom_titulaire.ilike.%${safe}%,prenom_titulaire.ilike.%${safe}%,matricule_lie.ilike.%${safe}%,rib.ilike.%${safe}%,id_societaire.ilike.%${safe}%`,
+        );
+      }
+      const { data, error, count } = await query;
+      if (error) throw error;
+      setSocietaires((data as Societaire[]) || []);
+      setRefTotal(count || 0);
+    } catch (err) {
+      console.error('Error fetching référentiel:', err);
+      toast({ title: 'Erreur', description: 'Impossible de charger le référentiel sociétaires', variant: 'destructive' });
+    } finally {
+      setRefLoading(false);
+    }
+  };
+
+  // Chargement initial / rechargement quand on ouvre l'onglet, change page ou filtre
+  useEffect(() => {
+    if (activeTab !== 'societaires') return;
+    fetchSocietaires(refPage, refSearch, refStatus);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, refPage, refStatus]);
+
+  // Debounce recherche
+  useEffect(() => {
+    if (activeTab !== 'societaires') return;
+    const t = setTimeout(() => {
+      setRefPage(0);
+      fetchSocietaires(0, refSearch, refStatus);
+    }, 350);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refSearch]);
+
+  const totalPages = Math.max(1, Math.ceil(refTotal / PAGE_SIZE));
+  const statusBadge = (s: string | null) => {
+    const map: Record<string, string> = {
+      ACTIF: 'bg-green-500/20 text-green-700',
+      GELE: 'bg-blue-500/20 text-blue-700',
+      CLOS: 'bg-gray-500/20 text-gray-700',
+      BLOQUE: 'bg-amber-500/20 text-amber-700',
+      SAISIE_ATTRIBUTION: 'bg-red-500/20 text-red-700',
+    };
+    return map[s || ''] || 'bg-muted text-foreground';
+  };
 
   const fetchRules = async () => {
     try {
@@ -443,16 +535,163 @@ export function SplittingRulesManager() {
                 <TabsTrigger value="ventilation" className="gap-1">
                   <PiggyBank className="h-3 w-3" /> Ventilation
                 </TabsTrigger>
+                <TabsTrigger value="societaires" className="gap-1">
+                  <Users className="h-3 w-3" /> Sociétaires {refTotal > 0 && `(${refTotal.toLocaleString()})`}
+                </TabsTrigger>
               </TabsList>
             </Tabs>
             <div className="relative w-64">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Rechercher..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-9" />
+              {activeTab === 'societaires' ? (
+                <Input
+                  placeholder="Nom, matricule, RIB, ID..."
+                  value={refSearch}
+                  onChange={e => setRefSearch(e.target.value)}
+                  className="pl-9"
+                />
+              ) : (
+                <Input placeholder="Rechercher..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-9" />
+              )}
             </div>
           </div>
         </CardHeader>
         <CardContent>
-          {loading ? (
+          {activeTab === 'societaires' ? (
+            <div className="space-y-4">
+              <div className="flex flex-wrap items-center gap-3">
+                <Select value={refStatus} onValueChange={(v) => { setRefStatus(v); setRefPage(0); }}>
+                  <SelectTrigger className="w-56">
+                    <SelectValue placeholder="Filtrer par statut" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">Tous les statuts</SelectItem>
+                    <SelectItem value="ACTIF">Actif</SelectItem>
+                    <SelectItem value="GELE">Gelé</SelectItem>
+                    <SelectItem value="CLOS">Clôturé</SelectItem>
+                    <SelectItem value="BLOQUE">Bloqué</SelectItem>
+                    <SelectItem value="SAISIE_ATTRIBUTION">Saisie attribution</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => fetchSocietaires(refPage, refSearch, refStatus)}
+                  disabled={refLoading}
+                  className="gap-2"
+                >
+                  {refLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                  Actualiser
+                </Button>
+                <div className="ml-auto text-sm text-muted-foreground">
+                  Lot {refPage + 1} / {totalPages} — {refTotal.toLocaleString()} sociétaires
+                </div>
+              </div>
+
+              {refLoading && societaires.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground flex items-center justify-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Chargement du référentiel...
+                </div>
+              ) : societaires.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">Aucun sociétaire trouvé</div>
+              ) : (
+                <>
+                  <div className="rounded-md border overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Nom & Prénom</TableHead>
+                          <TableHead>Matricule</TableHead>
+                          <TableHead>ID Sociétaire</TableHead>
+                          <TableHead>RIB</TableHead>
+                          <TableHead>Type</TableHead>
+                          <TableHead>Statut</TableHead>
+                          <TableHead className="text-right">Solde (XAF)</TableHead>
+                          <TableHead className="text-right">Action</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {societaires.map((s) => (
+                          <TableRow key={s.id} className={refLoading ? 'opacity-60' : ''}>
+                            <TableCell className="font-medium">
+                              {(s.nom_titulaire || '—')} {s.prenom_titulaire || ''}
+                            </TableCell>
+                            <TableCell>
+                              {s.matricule_lie ? (
+                                <code className="px-2 py-1 bg-muted rounded text-xs">{s.matricule_lie}</code>
+                              ) : <span className="text-muted-foreground">—</span>}
+                            </TableCell>
+                            <TableCell>
+                              {s.id_societaire ? (
+                                <code className="px-2 py-1 bg-muted rounded text-xs">{s.id_societaire}</code>
+                              ) : <span className="text-muted-foreground">—</span>}
+                            </TableCell>
+                            <TableCell>
+                              <code className="text-xs">{s.rib || '—'}</code>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className="text-xs">{s.account_type || '—'}</Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Badge className={statusBadge(s.account_status)} variant="secondary">
+                                {s.account_status || '—'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-right tabular-nums">
+                              {(s.solde_disponible ?? 0).toLocaleString()}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  resetForm();
+                                  setFormData(prev => ({
+                                    ...prev,
+                                    rule_name: `Règle ${s.nom_titulaire || ''} ${s.prenom_titulaire || ''}`.trim(),
+                                    matricule: s.matricule_lie || '',
+                                    id_societaire: s.id_societaire || '',
+                                    rib_courant_cible: s.account_type === 'COURANT' ? (s.rib || '') : '',
+                                    rib_epargne_cible: s.account_type === 'EPARGNE' ? (s.rib || '') : '',
+                                  }));
+                                  setIsDialogOpen(true);
+                                }}
+                              >
+                                <Plus className="h-3 w-3 mr-1" /> Règle
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={refPage === 0 || refLoading}
+                      onClick={() => setRefPage(p => Math.max(0, p - 1))}
+                      className="gap-1"
+                    >
+                      <ChevronLeft className="h-4 w-4" /> Lot précédent
+                    </Button>
+                    <div className="text-sm text-muted-foreground">
+                      Affichage {refPage * PAGE_SIZE + 1}–{Math.min((refPage + 1) * PAGE_SIZE, refTotal)} sur {refTotal.toLocaleString()}
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={refPage + 1 >= totalPages || refLoading}
+                      onClick={() => setRefPage(p => p + 1)}
+                      className="gap-1"
+                    >
+                      Lot suivant <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </>
+              )}
+            </div>
+          ) : loading ? (
             <div className="text-center py-8 text-muted-foreground">Chargement...</div>
           ) : filteredRules.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
