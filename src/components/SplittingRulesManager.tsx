@@ -613,7 +613,7 @@ export function SplittingRulesManager() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {societaires.map((s) => (
+                        {pagedSocietaires.map((s) => (
                           <TableRow key={s.id} className={refLoading ? 'opacity-60' : ''}>
                             <TableCell className="font-medium">
                               {(s.nom_titulaire || '—')} {s.prenom_titulaire || ''}
