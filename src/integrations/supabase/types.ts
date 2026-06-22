@@ -1162,6 +1162,300 @@ export type Database = {
         }
         Relationships: []
       }
+      mirror_amplitude_comptes: {
+        Row: {
+          cle_rib: string | null
+          code_banque: string | null
+          code_guichet: string | null
+          created_at: string
+          date_cloture: string | null
+          date_ouverture: string | null
+          decouvert_autorise: number | null
+          devise: string | null
+          id: string
+          id_societaire: string | null
+          numero_compte: string
+          oracle_last_sync_at: string | null
+          raw_data: Json | null
+          rib: string | null
+          solde: number | null
+          solde_disponible: number | null
+          statut: string | null
+          type_compte: string | null
+          updated_at: string
+        }
+        Insert: {
+          cle_rib?: string | null
+          code_banque?: string | null
+          code_guichet?: string | null
+          created_at?: string
+          date_cloture?: string | null
+          date_ouverture?: string | null
+          decouvert_autorise?: number | null
+          devise?: string | null
+          id?: string
+          id_societaire?: string | null
+          numero_compte: string
+          oracle_last_sync_at?: string | null
+          raw_data?: Json | null
+          rib?: string | null
+          solde?: number | null
+          solde_disponible?: number | null
+          statut?: string | null
+          type_compte?: string | null
+          updated_at?: string
+        }
+        Update: {
+          cle_rib?: string | null
+          code_banque?: string | null
+          code_guichet?: string | null
+          created_at?: string
+          date_cloture?: string | null
+          date_ouverture?: string | null
+          decouvert_autorise?: number | null
+          devise?: string | null
+          id?: string
+          id_societaire?: string | null
+          numero_compte?: string
+          oracle_last_sync_at?: string | null
+          raw_data?: Json | null
+          rib?: string | null
+          solde?: number | null
+          solde_disponible?: number | null
+          statut?: string | null
+          type_compte?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      mirror_amplitude_credits: {
+        Row: {
+          capital_restant_du: number | null
+          compte_remboursement: string | null
+          created_at: string
+          date_fin: string | null
+          date_octroi: string | null
+          duree_mois: number | null
+          id: string
+          id_societaire: string | null
+          matricule: string | null
+          mensualite: number | null
+          montant_initial: number | null
+          numero_pret: string
+          oracle_last_sync_at: string | null
+          raw_data: Json | null
+          statut: string | null
+          taux_interet: number | null
+          type_credit: string | null
+          updated_at: string
+        }
+        Insert: {
+          capital_restant_du?: number | null
+          compte_remboursement?: string | null
+          created_at?: string
+          date_fin?: string | null
+          date_octroi?: string | null
+          duree_mois?: number | null
+          id?: string
+          id_societaire?: string | null
+          matricule?: string | null
+          mensualite?: number | null
+          montant_initial?: number | null
+          numero_pret: string
+          oracle_last_sync_at?: string | null
+          raw_data?: Json | null
+          statut?: string | null
+          taux_interet?: number | null
+          type_credit?: string | null
+          updated_at?: string
+        }
+        Update: {
+          capital_restant_du?: number | null
+          compte_remboursement?: string | null
+          created_at?: string
+          date_fin?: string | null
+          date_octroi?: string | null
+          duree_mois?: number | null
+          id?: string
+          id_societaire?: string | null
+          matricule?: string | null
+          mensualite?: number | null
+          montant_initial?: number | null
+          numero_pret?: string
+          oracle_last_sync_at?: string | null
+          raw_data?: Json | null
+          statut?: string | null
+          taux_interet?: number | null
+          type_credit?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      mirror_amplitude_echeanciers: {
+        Row: {
+          assurance: number | null
+          capital: number | null
+          created_at: string
+          date_prelevement: string | null
+          id: string
+          interets: number | null
+          matricule: string | null
+          montant_total: number | null
+          numero_echeance: number | null
+          numero_pret: string
+          oracle_last_sync_at: string | null
+          raw_data: Json | null
+          statut: string | null
+          updated_at: string
+        }
+        Insert: {
+          assurance?: number | null
+          capital?: number | null
+          created_at?: string
+          date_prelevement?: string | null
+          id?: string
+          interets?: number | null
+          matricule?: string | null
+          montant_total?: number | null
+          numero_echeance?: number | null
+          numero_pret: string
+          oracle_last_sync_at?: string | null
+          raw_data?: Json | null
+          statut?: string | null
+          updated_at?: string
+        }
+        Update: {
+          assurance?: number | null
+          capital?: number | null
+          created_at?: string
+          date_prelevement?: string | null
+          id?: string
+          interets?: number | null
+          matricule?: string | null
+          montant_total?: number | null
+          numero_echeance?: number | null
+          numero_pret?: string
+          oracle_last_sync_at?: string | null
+          raw_data?: Json | null
+          statut?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      mirror_amplitude_saisies: {
+        Row: {
+          created_at: string
+          date_notification: string | null
+          huissier: string | null
+          id: string
+          id_societaire: string | null
+          matricule: string | null
+          montant_du: number | null
+          montant_preleve: number | null
+          oracle_last_sync_at: string | null
+          raw_data: Json | null
+          reference_saisie: string
+          statut: string | null
+          type_saisie: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          date_notification?: string | null
+          huissier?: string | null
+          id?: string
+          id_societaire?: string | null
+          matricule?: string | null
+          montant_du?: number | null
+          montant_preleve?: number | null
+          oracle_last_sync_at?: string | null
+          raw_data?: Json | null
+          reference_saisie: string
+          statut?: string | null
+          type_saisie?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          date_notification?: string | null
+          huissier?: string | null
+          id?: string
+          id_societaire?: string | null
+          matricule?: string | null
+          montant_du?: number | null
+          montant_preleve?: number | null
+          oracle_last_sync_at?: string | null
+          raw_data?: Json | null
+          reference_saisie?: string
+          statut?: string | null
+          type_saisie?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      mirror_amplitude_societaires: {
+        Row: {
+          adresse: string | null
+          code_employeur: string | null
+          created_at: string
+          date_adhesion: string | null
+          date_naissance: string | null
+          email: string | null
+          id: string
+          id_societaire: string
+          lieu_naissance: string | null
+          matricule: string | null
+          nom: string | null
+          oracle_last_sync_at: string | null
+          oracle_source_table: string | null
+          prenom: string | null
+          raw_data: Json | null
+          statut: string | null
+          telephone: string | null
+          updated_at: string
+        }
+        Insert: {
+          adresse?: string | null
+          code_employeur?: string | null
+          created_at?: string
+          date_adhesion?: string | null
+          date_naissance?: string | null
+          email?: string | null
+          id?: string
+          id_societaire: string
+          lieu_naissance?: string | null
+          matricule?: string | null
+          nom?: string | null
+          oracle_last_sync_at?: string | null
+          oracle_source_table?: string | null
+          prenom?: string | null
+          raw_data?: Json | null
+          statut?: string | null
+          telephone?: string | null
+          updated_at?: string
+        }
+        Update: {
+          adresse?: string | null
+          code_employeur?: string | null
+          created_at?: string
+          date_adhesion?: string | null
+          date_naissance?: string | null
+          email?: string | null
+          id?: string
+          id_societaire?: string
+          lieu_naissance?: string | null
+          matricule?: string | null
+          nom?: string | null
+          oracle_last_sync_at?: string | null
+          oracle_source_table?: string | null
+          prenom?: string | null
+          raw_data?: Json | null
+          statut?: string | null
+          telephone?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       monthly_flux_counter: {
         Row: {
           alert_generated: boolean | null
@@ -1336,6 +1630,188 @@ export type Database = {
           source_import_id?: string | null
         }
         Relationships: []
+      }
+      oracle_connections: {
+        Row: {
+          connection_type: string
+          created_at: string
+          fdw_server_name: string | null
+          host: string
+          id: string
+          is_active: boolean
+          last_test_at: string | null
+          last_test_status: string | null
+          nom: string
+          notes: string | null
+          port: number
+          schema_name: string
+          service_name: string
+          updated_at: string
+          username: string
+        }
+        Insert: {
+          connection_type?: string
+          created_at?: string
+          fdw_server_name?: string | null
+          host: string
+          id?: string
+          is_active?: boolean
+          last_test_at?: string | null
+          last_test_status?: string | null
+          nom: string
+          notes?: string | null
+          port?: number
+          schema_name?: string
+          service_name: string
+          updated_at?: string
+          username: string
+        }
+        Update: {
+          connection_type?: string
+          created_at?: string
+          fdw_server_name?: string | null
+          host?: string
+          id?: string
+          is_active?: boolean
+          last_test_at?: string | null
+          last_test_status?: string | null
+          nom?: string
+          notes?: string | null
+          port?: number
+          schema_name?: string
+          service_name?: string
+          updated_at?: string
+          username?: string
+        }
+        Relationships: []
+      }
+      oracle_sync_jobs: {
+        Row: {
+          connection_id: string
+          created_at: string
+          cron_schedule: string | null
+          id: string
+          incremental_column: string | null
+          is_active: boolean
+          last_run_at: string | null
+          last_run_rows: number | null
+          last_run_status: string | null
+          next_run_at: string | null
+          nom: string
+          source_table: string
+          sync_mode: string
+          target_table: string
+          updated_at: string
+        }
+        Insert: {
+          connection_id: string
+          created_at?: string
+          cron_schedule?: string | null
+          id?: string
+          incremental_column?: string | null
+          is_active?: boolean
+          last_run_at?: string | null
+          last_run_rows?: number | null
+          last_run_status?: string | null
+          next_run_at?: string | null
+          nom: string
+          source_table: string
+          sync_mode?: string
+          target_table: string
+          updated_at?: string
+        }
+        Update: {
+          connection_id?: string
+          created_at?: string
+          cron_schedule?: string | null
+          id?: string
+          incremental_column?: string | null
+          is_active?: boolean
+          last_run_at?: string | null
+          last_run_rows?: number | null
+          last_run_status?: string | null
+          next_run_at?: string | null
+          nom?: string
+          source_table?: string
+          sync_mode?: string
+          target_table?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "oracle_sync_jobs_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "oracle_connections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      oracle_sync_logs: {
+        Row: {
+          completed_at: string | null
+          connection_id: string | null
+          created_at: string
+          details: Json | null
+          duration_ms: number | null
+          error_message: string | null
+          id: string
+          job_id: string | null
+          rows_inserted: number | null
+          rows_read: number | null
+          rows_skipped: number | null
+          rows_updated: number | null
+          started_at: string
+          status: string
+        }
+        Insert: {
+          completed_at?: string | null
+          connection_id?: string | null
+          created_at?: string
+          details?: Json | null
+          duration_ms?: number | null
+          error_message?: string | null
+          id?: string
+          job_id?: string | null
+          rows_inserted?: number | null
+          rows_read?: number | null
+          rows_skipped?: number | null
+          rows_updated?: number | null
+          started_at?: string
+          status?: string
+        }
+        Update: {
+          completed_at?: string | null
+          connection_id?: string | null
+          created_at?: string
+          details?: Json | null
+          duration_ms?: number | null
+          error_message?: string | null
+          id?: string
+          job_id?: string | null
+          rows_inserted?: number | null
+          rows_read?: number | null
+          rows_skipped?: number | null
+          rows_updated?: number | null
+          started_at?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "oracle_sync_logs_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "oracle_connections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "oracle_sync_logs_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "oracle_sync_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       payment_priorities: {
         Row: {
