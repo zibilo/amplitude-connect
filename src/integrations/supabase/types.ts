@@ -89,6 +89,48 @@ export type Database = {
         }
         Relationships: []
       }
+      agences: {
+        Row: {
+          adresse: string | null
+          cle_rib: string
+          code_agence: string
+          contact_email: string | null
+          contact_phone: string | null
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          nom_agence: string
+          rib_agence: string
+          updated_at: string | null
+        }
+        Insert: {
+          adresse?: string | null
+          cle_rib: string
+          code_agence: string
+          contact_email?: string | null
+          contact_phone?: string | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          nom_agence: string
+          rib_agence: string
+          updated_at?: string | null
+        }
+        Update: {
+          adresse?: string | null
+          cle_rib?: string
+          code_agence?: string
+          contact_email?: string | null
+          contact_phone?: string | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          nom_agence?: string
+          rib_agence?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       agency_fee_distributions: {
         Row: {
           code_agence: string
@@ -169,6 +211,56 @@ export type Database = {
           user_agent?: string | null
         }
         Relationships: []
+      }
+      bourses_paiements: {
+        Row: {
+          code_retrait: string
+          created_at: string
+          date_retrait: string | null
+          etudiant_id: string | null
+          guichetier_id: string | null
+          id: string
+          montant: number
+          periode: string
+          reference_virement_clm: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          code_retrait: string
+          created_at?: string
+          date_retrait?: string | null
+          etudiant_id?: string | null
+          guichetier_id?: string | null
+          id?: string
+          montant: number
+          periode: string
+          reference_virement_clm?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          code_retrait?: string
+          created_at?: string
+          date_retrait?: string | null
+          etudiant_id?: string | null
+          guichetier_id?: string | null
+          id?: string
+          montant?: number
+          periode?: string
+          reference_virement_clm?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bourses_paiements_etudiant_id_fkey"
+            columns: ["etudiant_id"]
+            isOneToOne: false
+            referencedRelation: "etudiants_bourses"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       caisses: {
         Row: {
@@ -500,6 +592,50 @@ export type Database = {
             columns: ["import_id"]
             isOneToOne: false
             referencedRelation: "payroll_imports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      etudiants_bourses: {
+        Row: {
+          clm_agence_id: string | null
+          cni_numero: string
+          created_at: string
+          id: string
+          matricule: string
+          nom: string
+          prenom: string
+          telephone: string
+          updated_at: string
+        }
+        Insert: {
+          clm_agence_id?: string | null
+          cni_numero: string
+          created_at?: string
+          id?: string
+          matricule: string
+          nom: string
+          prenom: string
+          telephone: string
+          updated_at?: string
+        }
+        Update: {
+          clm_agence_id?: string | null
+          cni_numero?: string
+          created_at?: string
+          id?: string
+          matricule?: string
+          nom?: string
+          prenom?: string
+          telephone?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "etudiants_bourses_clm_agence_id_fkey"
+            columns: ["clm_agence_id"]
+            isOneToOne: false
+            referencedRelation: "clm_agency_codes"
             referencedColumns: ["id"]
           },
         ]
@@ -1631,6 +1767,62 @@ export type Database = {
         }
         Relationships: []
       }
+      oracle_column_registry: {
+        Row: {
+          column_order: number
+          created_at: string
+          data_length: number | null
+          data_precision: number | null
+          data_scale: number | null
+          id: string
+          nullable: boolean
+          oracle_data_type: string
+          pg_data_type: string
+          source_column: string
+          table_registry_id: string
+          target_column: string
+          updated_at: string
+        }
+        Insert: {
+          column_order: number
+          created_at?: string
+          data_length?: number | null
+          data_precision?: number | null
+          data_scale?: number | null
+          id?: string
+          nullable?: boolean
+          oracle_data_type: string
+          pg_data_type: string
+          source_column: string
+          table_registry_id: string
+          target_column: string
+          updated_at?: string
+        }
+        Update: {
+          column_order?: number
+          created_at?: string
+          data_length?: number | null
+          data_precision?: number | null
+          data_scale?: number | null
+          id?: string
+          nullable?: boolean
+          oracle_data_type?: string
+          pg_data_type?: string
+          source_column?: string
+          table_registry_id?: string
+          target_column?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "oracle_column_registry_table_registry_id_fkey"
+            columns: ["table_registry_id"]
+            isOneToOne: false
+            referencedRelation: "oracle_table_registry"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       oracle_connections: {
         Row: {
           connection_type: string
@@ -1685,6 +1877,33 @@ export type Database = {
         }
         Relationships: []
       }
+      oracle_runtime_lock: {
+        Row: {
+          acquired_at: string
+          created_at: string
+          expires_at: string
+          lock_name: string
+          owner_id: string
+          updated_at: string
+        }
+        Insert: {
+          acquired_at?: string
+          created_at?: string
+          expires_at: string
+          lock_name: string
+          owner_id: string
+          updated_at?: string
+        }
+        Update: {
+          acquired_at?: string
+          created_at?: string
+          expires_at?: string
+          lock_name?: string
+          owner_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       oracle_sync_jobs: {
         Row: {
           connection_id: string
@@ -1693,6 +1912,7 @@ export type Database = {
           id: string
           incremental_column: string | null
           is_active: boolean
+          is_excluded: boolean
           last_run_at: string | null
           last_run_rows: number | null
           last_run_status: string | null
@@ -1700,8 +1920,11 @@ export type Database = {
           nom: string
           source_table: string
           sync_mode: string
+          sync_priority: number
           target_table: string
           updated_at: string
+          window_end: string | null
+          window_start: string | null
         }
         Insert: {
           connection_id: string
@@ -1710,6 +1933,7 @@ export type Database = {
           id?: string
           incremental_column?: string | null
           is_active?: boolean
+          is_excluded?: boolean
           last_run_at?: string | null
           last_run_rows?: number | null
           last_run_status?: string | null
@@ -1717,8 +1941,11 @@ export type Database = {
           nom: string
           source_table: string
           sync_mode?: string
+          sync_priority?: number
           target_table: string
           updated_at?: string
+          window_end?: string | null
+          window_start?: string | null
         }
         Update: {
           connection_id?: string
@@ -1727,6 +1954,7 @@ export type Database = {
           id?: string
           incremental_column?: string | null
           is_active?: boolean
+          is_excluded?: boolean
           last_run_at?: string | null
           last_run_rows?: number | null
           last_run_status?: string | null
@@ -1734,8 +1962,11 @@ export type Database = {
           nom?: string
           source_table?: string
           sync_mode?: string
+          sync_priority?: number
           target_table?: string
           updated_at?: string
+          window_end?: string | null
+          window_start?: string | null
         }
         Relationships: [
           {
@@ -1809,6 +2040,115 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "oracle_sync_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      oracle_sync_state: {
+        Row: {
+          created_at: string
+          id: string
+          last_full_sync_at: string | null
+          last_incremental_cursor: string | null
+          last_row_count: number | null
+          last_row_hash: string | null
+          table_registry_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          last_full_sync_at?: string | null
+          last_incremental_cursor?: string | null
+          last_row_count?: number | null
+          last_row_hash?: string | null
+          table_registry_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          last_full_sync_at?: string | null
+          last_incremental_cursor?: string | null
+          last_row_count?: number | null
+          last_row_hash?: string | null
+          table_registry_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "oracle_sync_state_table_registry_id_fkey"
+            columns: ["table_registry_id"]
+            isOneToOne: true
+            referencedRelation: "oracle_table_registry"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      oracle_table_registry: {
+        Row: {
+          connection_id: string
+          created_at: string
+          id: string
+          incremental_column: string | null
+          is_enabled: boolean
+          last_discovered_at: string
+          last_sync_error: string | null
+          last_sync_status: string | null
+          last_synced_at: string | null
+          primary_key_columns: string[]
+          row_count_estimate: number | null
+          source_schema: string
+          source_table: string
+          sync_mode: string
+          target_schema: string
+          target_table: string
+          updated_at: string
+        }
+        Insert: {
+          connection_id: string
+          created_at?: string
+          id?: string
+          incremental_column?: string | null
+          is_enabled?: boolean
+          last_discovered_at?: string
+          last_sync_error?: string | null
+          last_sync_status?: string | null
+          last_synced_at?: string | null
+          primary_key_columns?: string[]
+          row_count_estimate?: number | null
+          source_schema: string
+          source_table: string
+          sync_mode?: string
+          target_schema?: string
+          target_table: string
+          updated_at?: string
+        }
+        Update: {
+          connection_id?: string
+          created_at?: string
+          id?: string
+          incremental_column?: string | null
+          is_enabled?: boolean
+          last_discovered_at?: string
+          last_sync_error?: string | null
+          last_sync_status?: string | null
+          last_synced_at?: string | null
+          primary_key_columns?: string[]
+          row_count_estimate?: number | null
+          source_schema?: string
+          source_table?: string
+          sync_mode?: string
+          target_schema?: string
+          target_table?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "oracle_table_registry_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "oracle_connections"
             referencedColumns: ["id"]
           },
         ]
@@ -2749,6 +3089,35 @@ export type Database = {
           periode?: string
         }
         Relationships: []
+      }
+      societaire_agency_associations: {
+        Row: {
+          agency_id: string
+          created_at: string
+          id: string
+          id_societaire: string
+        }
+        Insert: {
+          agency_id: string
+          created_at?: string
+          id?: string
+          id_societaire: string
+        }
+        Update: {
+          agency_id?: string
+          created_at?: string
+          id?: string
+          id_societaire?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "societaire_agency_associations_agency_id_fkey"
+            columns: ["agency_id"]
+            isOneToOne: false
+            referencedRelation: "agences"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       split_transactions: {
         Row: {
